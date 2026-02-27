@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Merlin – Offline Document Assistant</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:       #0f1117;
+      --surface:  #1a1d27;
+      --surface2: #23273a;
+      --border:   #2e3348;
+      --accent:   #5b8dee;
+      --accent2:  #3ecf8e;
+      --triage:   #f59e0b;
+      --text:     #e2e8f0;
+      --muted:    #8892a4;
+      --user-bg:  #2a3050;
+      --bot-bg:   #1a1d27;
+      --danger:   #ef4444;
+      --radius:   10px;
+    }
+
+    body {
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ── Header ── */
+    header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 20px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    header .logo {
+      font-size: 1.35rem;
+      font-weight: 700;
+      letter-spacing: -.5px;
+      color: var(--accent);
+    }
+    header .subtitle { font-size: .8rem; color: var(--muted); }
+    #health-dot {
+      width: 9px; height: 9px;
+      border-radius: 50%;
+      background: var(--muted);
+      margin-left: auto;
+      transition: background .3s;
+    }
+    #health-dot.ok   { background: var(--accent2); }
+    #health-dot.fail { background: var(--danger); }
+    #health-label { font-size: .75rem; color: var(--muted); }
+
+    /* ── Chat area ── */
+    #chat {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      scroll-behavior: smooth;
+    }
+
+    .message { display: flex; gap: 12px; max-width: 820px; width: 100%; }
+    .message.user  { align-self: flex-end; flex-direction: row-reverse; }
+    .message.bot   { align-self: flex-start; }
+
+    .avatar {
+      width: 34px; height: 34px;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: .85rem; font-weight: 700;
+      flex-shrink: 0;
+    }
+    .user .avatar  { background: var(--accent);  color: #fff; }
+    .bot  .avatar  { background: var(--surface2); color: var(--accent); }
+
+    .bubble {
+      padding: 12px 16px;
+      border-radius: var(--radius);
+      line-height: 1.6;
+      font-size: .92rem;
+      word-break: break-word;
+      max-width: 100%;
+    }
+    .user .bubble {
+      background: var(--user-bg);
+      border-top-right-radius: 2px;
+    }
+    .bot .bubble {
+      background: var(--bot-bg);
+      border: 1px solid var(--border);
+      border-top-left-radius: 2px;
+    }
+
+    /* Triage badge */
+    .triage-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      background: rgba(245,158,11,.15);
+      color: var(--triage);
+      border: 1px solid rgba(245,158,11,.35);
+      border-radius: 6px;
+      font-size: .72rem;
+      font-weight: 600;
+      padding: 2px 8px;
+      margin-bottom: 8px;
+    }
+
+    /* Markdown-ish rendering */
+    .bubble pre {
+      background: #12141d;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 10px 14px;
+      overflow-x: auto;
+      font-size: .82rem;
+      margin: 8px 0;
+    }
+    .bubble code { font-family: "JetBrains Mono", "Fira Code", monospace; }
+    .bubble h2, .bubble h3 { margin: 10px 0 4px; }
+    .bubble p { margin: 4px 0; }
+    .bubble ul, .bubble ol { margin: 4px 0 4px 20px; }
+
+    /* Citations */
+    .citations-toggle {
+      background: none;
+      border: none;
+      color: var(--accent);
+      cursor: pointer;
+      font-size: .78rem;
+      padding: 4px 0 0;
+      display: block;
+      text-align: left;
+    }
+    .citations-toggle:hover { text-decoration: underline; }
+    .citations-list {
+      margin-top: 6px;
+      padding: 8px 12px;
+      background: var(--surface2);
+      border-radius: 6px;
+      font-size: .78rem;
+      color: var(--muted);
+      display: none;
+    }
+    .citations-list.open { display: block; }
+    .citations-list span { display: block; margin-bottom: 2px; }
+
+    /* Action buttons */
+    .message-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 8px;
+    }
+    .action-btn {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--muted);
+      border-radius: 6px;
+      padding: 4px 10px;
+      font-size: .75rem;
+      cursor: pointer;
+      transition: all .15s;
+    }
+    .action-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+    /* Thinking indicator */
+    .thinking {
+      display: flex;
+      gap: 5px;
+      padding: 12px 16px;
+      background: var(--bot-bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      width: fit-content;
+    }
+    .thinking span {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--muted);
+      animation: pulse 1.4s infinite ease-in-out;
+    }
+    .thinking span:nth-child(2) { animation-delay: .2s; }
+    .thinking span:nth-child(3) { animation-delay: .4s; }
+    @keyframes pulse {
+      0%,80%,100% { transform: scale(.8); opacity:.4; }
+      40%          { transform: scale(1.1); opacity:1; }
+    }
+
+    /* ── Input bar ── */
+    #input-bar {
+      flex-shrink: 0;
+      padding: 14px 20px;
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      display: flex;
+      gap: 10px;
+      align-items: flex-end;
+    }
+    #msg-input {
+      flex: 1;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text);
+      padding: 10px 14px;
+      font-size: .92rem;
+      resize: none;
+      min-height: 44px;
+      max-height: 180px;
+      line-height: 1.5;
+      transition: border-color .15s;
+      font-family: inherit;
+    }
+    #msg-input:focus { outline: none; border-color: var(--accent); }
+    #msg-input::placeholder { color: var(--muted); }
+
+    #send-btn {
+      background: var(--accent);
+      border: none;
+      border-radius: var(--radius);
+      color: #fff;
+      padding: 10px 18px;
+      font-size: .9rem;
+      font-weight: 600;
+      cursor: pointer;
+      height: 44px;
+      transition: opacity .15s;
+      white-space: nowrap;
+    }
+    #send-btn:hover   { opacity: .85; }
+    #send-btn:disabled{ opacity: .45; cursor: not-allowed; }
+
+    /* Scrollbar */
+    #chat::-webkit-scrollbar { width: 6px; }
+    #chat::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  </style>
+</head>
+<body>
+
+<header>
+  <div>
+    <div class="logo">⚡ Merlin</div>
+    <div class="subtitle">Offline Document Assistant</div>
+  </div>
+  <div id="health-dot" title="LLM server status"></div>
+  <span id="health-label">checking…</span>
+</header>
+
+<div id="chat" role="log" aria-live="polite"></div>
+
+<div id="input-bar">
+  <textarea
+    id="msg-input"
+    rows="1"
+    placeholder="Ask a question or paste an error log…"
+    autofocus
+  ></textarea>
+  <button id="send-btn">Send</button>
+</div>
+
+<script>
+(function () {
+  const chat     = document.getElementById('chat');
+  const input    = document.getElementById('msg-input');
+  const sendBtn  = document.getElementById('send-btn');
+  const healthDot   = document.getElementById('health-dot');
+  const healthLabel = document.getElementById('health-label');
+
+  // ── Health check ──────────────────────────────────────────────────────────
+  async function checkHealth() {
+    try {
+      const res = await fetch('/health');
+      const data = await res.json();
+      if (data.llm_reachable) {
+        healthDot.className   = 'ok';
+        healthLabel.textContent = 'LLM online';
+      } else {
+        healthDot.className   = 'fail';
+        healthLabel.textContent = 'LLM offline';
+      }
+    } catch {
+      healthDot.className   = 'fail';
+      healthLabel.textContent = 'unreachable';
+    }
+  }
+  checkHealth();
+  setInterval(checkHealth, 30_000);
+
+  // ── Auto-resize textarea ──────────────────────────────────────────────────
+  input.addEventListener('input', () => {
+    input.style.height = 'auto';
+    input.style.height = Math.min(input.scrollHeight, 180) + 'px';
+  });
+
+  // ── Simple markdown renderer ──────────────────────────────────────────────
+  function renderMarkdown(text) {
+    // Code blocks
+    text = text.replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>');
+    // Inline code
+    text = text.replace(/`([^`]+)`/g, '<code>$1</code>');
+    // Bold
+    text = text.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    // Headings
+    text = text.replace(/^#{1,3} (.+)$/gm, (_, t) => `<h3>${t}</h3>`);
+    // Numbered lists
+    text = text.replace(/^\d+\. (.+)$/gm, '<li>$1</li>');
+    // Bullet lists
+    text = text.replace(/^[-*] (.+)$/gm, '<li>$1</li>');
+    // Wrap consecutive <li> in <ul>
+    text = text.replace(/(<li>[\s\S]*?<\/li>)(?=\s*<li>|$)/g, (m) => m);
+    // Paragraphs (double newline)
+    text = text.replace(/\n\n/g, '</p><p>');
+    return `<p>${text}</p>`;
+  }
+
+  // ── Append a user bubble ──────────────────────────────────────────────────
+  function appendUser(text) {
+    const msg = document.createElement('div');
+    msg.className = 'message user';
+    msg.innerHTML = `
+      <div class="avatar">U</div>
+      <div class="bubble">${escapeHtml(text)}</div>
+    `;
+    chat.appendChild(msg);
+    scrollToBottom();
+    return msg;
+  }
+
+  // ── Append a thinking indicator ───────────────────────────────────────────
+  function appendThinking() {
+    const msg = document.createElement('div');
+    msg.className = 'message bot';
+    msg.innerHTML = `
+      <div class="avatar">M</div>
+      <div class="thinking"><span></span><span></span><span></span></div>
+    `;
+    chat.appendChild(msg);
+    scrollToBottom();
+    return msg;
+  }
+
+  // ── Append a bot response ─────────────────────────────────────────────────
+  function appendBot(data, originalQuery) {
+    const { answer, citations, is_triage, chunk_ids } = data;
+
+    const triageBadge = is_triage
+      ? `<div class="triage-badge">🚨 Triage Mode</div>`
+      : '';
+
+    const citationHtml = citations.length
+      ? `<button class="citations-toggle" onclick="this.nextElementSibling.classList.toggle('open')">
+           📚 ${citations.length} source${citations.length > 1 ? 's' : ''} ▾
+         </button>
+         <div class="citations-list">${citations.map(c => `<span>${escapeHtml(c)}</span>`).join('')}</div>`
+      : '';
+
+    const msg = document.createElement('div');
+    msg.className = 'message bot';
+    msg.innerHTML = `
+      <div class="avatar">M</div>
+      <div>
+        <div class="bubble">
+          ${triageBadge}
+          ${renderMarkdown(answer)}
+          ${citationHtml}
+        </div>
+        <div class="message-actions">
+          <button class="action-btn expand-btn">Expand ↗</button>
+          <button class="action-btn copy-btn">Copy</button>
+        </div>
+      </div>
+    `;
+
+    // Expand button
+    msg.querySelector('.expand-btn').addEventListener('click', () => {
+      sendMessage(`Expand on your last answer. Original question: ${originalQuery}`, true);
+    });
+
+    // Copy button
+    msg.querySelector('.copy-btn').addEventListener('click', () => {
+      navigator.clipboard.writeText(answer).catch(() => {});
+    });
+
+    chat.appendChild(msg);
+    scrollToBottom();
+  }
+
+  // ── Append an error bubble ────────────────────────────────────────────────
+  function appendError(text) {
+    const msg = document.createElement('div');
+    msg.className = 'message bot';
+    msg.innerHTML = `
+      <div class="avatar" style="background:#ef4444">!</div>
+      <div class="bubble" style="border-color:#ef4444;color:#fca5a5">${escapeHtml(text)}</div>
+    `;
+    chat.appendChild(msg);
+    scrollToBottom();
+  }
+
+  // ── Core send function ────────────────────────────────────────────────────
+  async function sendMessage(query, isExpand = false) {
+    if (!query.trim()) return;
+
+    if (!isExpand) {
+      appendUser(query);
+      input.value = '';
+      input.style.height = 'auto';
+    }
+
+    sendBtn.disabled = true;
+    const thinkingEl = appendThinking();
+
+    try {
+      const res = await fetch('/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: query, expand: isExpand }),
+      });
+
+      thinkingEl.remove();
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: res.statusText }));
+        appendError(`Error ${res.status}: ${err.detail || 'Unknown error'}`);
+        return;
+      }
+
+      const data = await res.json();
+      appendBot(data, query);
+    } catch (err) {
+      thinkingEl.remove();
+      appendError(`Network error: ${err.message}`);
+    } finally {
+      sendBtn.disabled = false;
+    }
+  }
+
+  // ── Event listeners ───────────────────────────────────────────────────────
+  sendBtn.addEventListener('click', () => sendMessage(input.value));
+
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage(input.value);
+    }
+  });
+
+  // ── Utilities ─────────────────────────────────────────────────────────────
+  function scrollToBottom() {
+    requestAnimationFrame(() => {
+      chat.scrollTop = chat.scrollHeight;
+    });
+  }
+
+  function escapeHtml(str) {
+    return str
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  // ── Welcome message ───────────────────────────────────────────────────────
+  appendBot({
+    answer: "👋 Hello! I'm **Merlin**, your offline document assistant.\n\nAsk me anything about the runbooks, architecture docs, or incident history — or paste an error log for triage analysis.\n\nMake sure to run the ingestion script first:\n```\npython -m app.ingestion.ingest --input ./docs\n```",
+    citations: [],
+    is_triage: false,
+    chunk_ids: [],
+  }, '');
+})();
+</script>
+</body>
+</html>
