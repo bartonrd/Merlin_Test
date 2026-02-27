@@ -224,7 +224,7 @@ def chunk_general(
 
     # Include any text before the first heading
     if matches[0].start() > 0:
-        sections.insert(("preamble", text[: matches[0].start()]), 0)  # type: ignore[call-overload]
+        sections.insert(0, ("preamble", text[: matches[0].start()]))
 
     return _sections_to_chunks(
         sections, doc_id, title, path, "general", max_size, overlap
