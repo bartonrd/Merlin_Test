@@ -1,0 +1,33 @@
+# Merlin - Offline Document Assistant Configuration
+# Copy this file and adjust paths as needed.
+
+# LLM backend (llama.cpp server)
+llm_base_url: "http://localhost:8080"
+llm_model: "local-model"
+llm_max_tokens: 1024
+llm_temperature: 0.2
+llm_context_window: 4096
+
+# Embedding model (sentence-transformers, runs offline)
+embedding_model: "all-MiniLM-L6-v2"
+embedding_batch_size: 64
+
+# Optional cross-encoder reranker (set to null to disable)
+reranker_model: null  # e.g. "cross-encoder/ms-marco-MiniLM-L-6-v2"
+
+# Storage paths
+db_path: "./data/db.sqlite"
+faiss_path: "./data/index.faiss"
+faiss_map_path: "./data/faiss_map.json"
+docs_dir: "./docs"
+
+# Search parameters
+top_k_bm25: 10
+top_k_vector: 10
+top_k_final: 5
+
+# Audit log
+audit_log_path: "./data/audit.jsonl"
+
+# UI
+ui_enabled: true
