@@ -193,14 +193,6 @@
       border-radius: var(--radius);
       width: fit-content;
     }
-    .thinking span:not(.thinking-msg) {
-      width: 8px; height: 8px;
-      border-radius: 50%;
-      background: var(--muted);
-      animation: pulse 1.4s infinite ease-in-out;
-    }
-    .thinking span:nth-child(2) { animation-delay: .2s; }
-    .thinking span:nth-child(3) { animation-delay: .4s; }
     .thinking .thinking-msg {
       font-size: .82rem;
       color: var(--muted);
@@ -208,10 +200,7 @@
       margin-left: 4px;
       align-self: center;
     }
-    @keyframes pulse {
-      0%,80%,100% { transform: scale(.8); opacity:.4; }
-      40%          { transform: scale(1.1); opacity:1; }
-    }
+
 
     /* ── Input bar ── */
     #input-bar {
@@ -380,7 +369,7 @@
     const initialMsg = randomThinkingMsg();
     msg.innerHTML = `
       <div class="avatar">M</div>
-      <div class="thinking"><span></span><span></span><span></span><span class="thinking-msg">${initialMsg}</span></div>
+      <div class="thinking"><span class="thinking-msg">${initialMsg}</span></div>
     `;
     chat.appendChild(msg);
     scrollToBottom();
