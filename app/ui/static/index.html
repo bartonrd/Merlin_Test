@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Merlin – Offline Document Assistant</title>
+  <link rel="icon" type="image/png" href="/icon_merlin.png" />
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -48,6 +49,14 @@
       font-weight: 700;
       letter-spacing: -.5px;
       color: var(--accent);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    header .logo img {
+      width: 28px;
+      height: 28px;
+      object-fit: contain;
     }
     header .subtitle { font-size: .8rem; color: var(--muted); }
     #health-dot {
@@ -252,7 +261,7 @@
 
 <header>
   <div>
-    <div class="logo">⚡ Merlin</div>
+    <div class="logo"><img src="/icon_merlin.png" alt="Merlin icon" /> Merlin</div>
     <div class="subtitle">Offline Document Assistant</div>
   </div>
   <div id="health-dot" title="LLM server status"></div>
