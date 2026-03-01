@@ -114,7 +114,7 @@ echo.
 echo   1. Activate the virtual environment:
 echo        .venv\Scripts\activate
 echo.
-echo   2. Ingest your documents (optional):
+echo   2. Ingest your documents (optional – done automatically on startup):
 echo        python -m app.ingestion.ingest --input .\docs
 echo.
 echo   3. Start the server:

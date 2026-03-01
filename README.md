@@ -94,17 +94,19 @@ Start any OpenAI-compatible server separately, e.g.:
 # or: ollama serve
 ```
 
-### 2. Ingest your documents
+### 2. Drop your documents into `docs/`
+
+Place any `.pdf`, `.md`, `.txt`, or `.docx` files in the `docs/` folder.
+**No manual ingestion step is needed** – the server automatically indexes new files on every startup:
+
+- Already-indexed files are skipped (no duplicates).
+- New files are parsed, chunked, embedded and added to the SQLite FTS5 + FAISS indexes before the first request is served.
+
+To re-ingest from scratch (e.g. after editing a document), run the CLI directly:
 
 ```bash
-python -m app.ingestion.ingest --input ./docs
+python -m app.ingestion.ingest --input ./docs --clear
 ```
-
-This will:
-- Parse all `.md`, `.txt`, `.pdf`, `.docx` files in `./docs`
-- Auto-detect document type (runbook / incident / architecture / general)
-- Chunk documents with type-aware strategies
-- Build a SQLite FTS5 BM25 index and a FAISS vector index
 
 ### 3. Start the server
 

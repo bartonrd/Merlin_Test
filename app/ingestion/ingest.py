@@ -9,7 +9,7 @@ import hashlib
 import pickle
 import sqlite3
 from pathlib import Path
-from typing import List
+from typing import List, Set, Union
 
 import faiss
 import numpy as np
@@ -86,13 +86,7 @@ def insert_chunks(conn: sqlite3.Connection, chunks: List[Chunk]) -> List[int]:
 
 def build_fts_index(conn: sqlite3.Connection) -> None:
     """Populate the FTS5 table from the chunks table."""
-    conn.execute("DELETE FROM chunks_fts")
-    conn.execute(
-        """
-        INSERT INTO chunks_fts (rowid, text, title, section, doc_type)
-        SELECT id, text, title, section, doc_type FROM chunks
-        """
-    )
+    conn.execute("INSERT INTO chunks_fts(chunks_fts) VALUES('rebuild')")
     conn.commit()
 
 
@@ -147,6 +141,83 @@ def process_file(path: Path) -> List[Chunk]:
 
 
 # ---------------------------------------------------------------------------
+# Reusable ingestion function (also used by the server startup handler)
+# ---------------------------------------------------------------------------
+
+
+def get_known_doc_ids(conn: sqlite3.Connection) -> Set[str]:
+    """Return the set of doc_ids already present in the chunks table."""
+    cur = conn.execute("SELECT DISTINCT doc_id FROM chunks")
+    return {row[0] for row in cur.fetchall()}
+
+
+def ingest_directory(
+    input_dir: Union[str, Path],
+    db_path: str,
+    faiss_path: str,
+    faiss_map_path: str,
+    clear: bool = False,
+    skip_known: bool = True,
+) -> int:
+    """Ingest all supported documents in *input_dir* into the index.
+
+    Args:
+        input_dir:      Directory to scan for documents.
+        db_path:        SQLite DB path.
+        faiss_path:     FAISS index path.
+        faiss_map_path: FAISS map pickle path.
+        clear:          If True, drop the existing DB before ingesting.
+        skip_known:     If True (default), skip files whose doc_id is already
+                        in the DB so repeated startups don't create duplicates.
+
+    Returns:
+        Number of new chunks inserted during this run.
+    """
+    input_dir = Path(input_dir)
+    if not input_dir.exists():
+        print(f"[ingest] Input directory not found: {input_dir}")
+        return 0
+
+    if clear and Path(db_path).exists():
+        Path(db_path).unlink()
+        print(f"[ingest] Cleared existing DB: {db_path}")
+
+    conn = init_db(db_path)
+    known_ids = get_known_doc_ids(conn) if skip_known else set()
+
+    files = [f for f in input_dir.rglob("*") if f.suffix.lower() in SUPPORTED_EXTENSIONS]
+    if not files:
+        print(f"[ingest] No supported documents found in {input_dir}")
+        conn.close()
+        return 0
+
+    new_chunks: List[Chunk] = []
+    for file_path in sorted(files):
+        doc_id = _doc_id(file_path)
+        if doc_id in known_ids:
+            print(f"[ingest] Skipping already-indexed: {file_path.name}")
+            continue
+        try:
+            chunks = process_file(file_path)
+            insert_chunks(conn, chunks)
+            new_chunks.extend(chunks)
+            print(f"[ingest]   {file_path.name}: {len(chunks)} chunks")
+        except Exception as exc:
+            print(f"[ingest]   ERROR processing {file_path.name}: {exc}")
+
+    if new_chunks:
+        print(f"[ingest] {len(new_chunks)} new chunk(s) inserted – rebuilding indexes …")
+        build_fts_index(conn)
+        build_faiss_index(conn, faiss_path, faiss_map_path)
+        print("[ingest] Ingestion complete.")
+    else:
+        print("[ingest] No new documents – indexes unchanged.")
+
+    conn.close()
+    return len(new_chunks)
+
+
+# ---------------------------------------------------------------------------
 # CLI entry point
 # ---------------------------------------------------------------------------
 
@@ -165,43 +236,14 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    input_dir = Path(args.input)
-    if not input_dir.exists():
-        print(f"Input directory not found: {input_dir}")
-        return
-
-    if args.clear and Path(args.db).exists():
-        Path(args.db).unlink()
-        print(f"Cleared existing DB: {args.db}")
-
-    conn = init_db(args.db)
-
-    all_chunks: List[Chunk] = []
-    files = [f for f in input_dir.rglob("*") if f.suffix.lower() in SUPPORTED_EXTENSIONS]
-
-    if not files:
-        print(f"No supported documents found in {input_dir}")
-        return
-
-    for file_path in sorted(files):
-        try:
-            chunks = process_file(file_path)
-            insert_chunks(conn, chunks)
-            all_chunks.extend(chunks)
-            print(f"  {file_path.name}: {len(chunks)} chunks")
-        except Exception as exc:
-            print(f"  ERROR processing {file_path.name}: {exc}")
-
-    print(f"\nTotal chunks inserted: {len(all_chunks)}")
-
-    print("Building FTS5 index …")
-    build_fts_index(conn)
-
-    print("Building FAISS index …")
-    build_faiss_index(conn, args.faiss, args.faiss_map)
-
-    conn.close()
-    print("Ingestion complete.")
+    ingest_directory(
+        input_dir=args.input,
+        db_path=args.db,
+        faiss_path=args.faiss,
+        faiss_map_path=args.faiss_map,
+        clear=args.clear,
+        skip_known=False,  # CLI always re-processes (matches original behaviour)
+    )
 
 
 if __name__ == "__main__":

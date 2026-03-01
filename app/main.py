@@ -12,6 +12,7 @@ if str(_project_root) not in _sys.path:
 
 import json
 import logging
+from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
@@ -20,6 +21,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
+from app.ingestion.ingest import ingest_directory
 from app.llm.client import LLMClient, LocalLLMClient, NoLLMClient, get_llm_client
 from app.llm.prompting import build_chat_messages, format_citation
 from app.reasoning.router import route_and_retrieve
@@ -44,10 +46,40 @@ def _audit(record: Dict[str, Any]) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Startup: auto-ingest docs/ directory
+# ---------------------------------------------------------------------------
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):  # type: ignore[type-arg]
+    """Run document ingestion before the server starts accepting requests."""
+    docs_dir = Path(settings.docs_dir)
+    if docs_dir.exists():
+        logger.info("Auto-ingesting documents from %s …", docs_dir)
+        try:
+            new_chunks = ingest_directory(
+                input_dir=docs_dir,
+                db_path=settings.db_path,
+                faiss_path=settings.faiss_path,
+                faiss_map_path=settings.faiss_map_path,
+                skip_known=True,
+            )
+            if new_chunks:
+                logger.info("Startup ingestion complete: %d new chunk(s) indexed.", new_chunks)
+            else:
+                logger.info("Startup ingestion: no new documents found.")
+        except Exception as exc:
+            logger.error("Startup ingestion failed: %s", exc)
+    else:
+        logger.info("docs/ directory not found – skipping startup ingestion.")
+    yield
+
+
+# ---------------------------------------------------------------------------
 # FastAPI app
 # ---------------------------------------------------------------------------
 
-app = FastAPI(title="Merlin - Offline Document Assistant", version="1.0.0")
+app = FastAPI(title="Merlin - Offline Document Assistant", version="1.0.0", lifespan=lifespan)
 
 # ---------------------------------------------------------------------------
 # Pydantic models
