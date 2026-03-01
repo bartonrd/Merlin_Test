@@ -81,7 +81,21 @@ This will:
 
 ### 4. Start the server
 
-**Option A – simple script (Windows-friendly):**
+**Easiest – double-click (Windows) or run the launcher script:**
+
+```bat
+:: Windows – from the project root or any directory
+start.bat
+```
+
+```bash
+# Linux / macOS
+bash start.sh
+```
+
+Both scripts activate the `.venv` automatically before starting the server.
+
+**Or manually (after activating the venv):**
 
 ```bash
 # From the project root
@@ -89,12 +103,6 @@ python main.py
 
 # With options (use --host 0.0.0.0 to expose on the local network)
 python main.py --host 127.0.0.1 --port 8000 --reload
-```
-
-**Option B – uvicorn directly:**
-
-```bash
-uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
 Open [http://localhost:8000](http://localhost:8000) in your browser.

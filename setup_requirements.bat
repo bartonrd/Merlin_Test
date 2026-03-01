@@ -74,7 +74,12 @@ echo ==========================================================
 echo  Setup complete!
 echo ==========================================================
 echo.
-echo Next steps:
+echo To launch the server, simply run:
+echo.
+echo        start.bat
+echo.
+echo Or, to start manually:
+echo.
 echo   1. Activate the virtual environment:
 echo        .venv\Scripts\activate
 echo.
@@ -83,8 +88,6 @@ echo        python -m app.ingestion.ingest --input .\docs
 echo.
 echo   3. Start the server:
 echo        python main.py
-echo        -- or --
-echo        uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
 echo.
 echo   Then open http://127.0.0.1:8000 in your browser.
 echo ==========================================================
