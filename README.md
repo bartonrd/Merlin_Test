@@ -75,6 +75,29 @@ README.md
 
 ## Installation
 
+### Quick setup (recommended)
+
+Run the one-shot setup script from the **project root**.  It creates a
+virtual environment, installs all dependencies, and pre-downloads the
+embedding model so the app can run fully offline.
+
+**Windows**
+```bat
+setup_requirements.bat
+```
+
+**Linux / macOS**
+```bash
+bash setup_requirements.sh
+```
+
+Both scripts print clear progress messages and tell you exactly what to do
+next when they finish.
+
+---
+
+### Manual setup
+
 ```bash
 # 1. Clone the repo
 git clone https://github.com/your-org/merlin.git
@@ -87,24 +110,8 @@ source .venv/bin/activate   # Windows: .venv\Scripts\activate
 # 3. Install dependencies
 pip install -r requirements.txt
 
-# 4. Copy and edit the config (adjust paths as needed)
-cp config.yaml config.yaml  # already provided; edit as needed
-```
-
-For PDF support (optional):
-```bash
-pip install pdfplumber
-```
-
-For DOCX support (optional, included in requirements):
-```bash
-pip install python-docx
-```
-
-To pre-download the embedding model for offline use:
-```python
-from sentence_transformers import SentenceTransformer
-SentenceTransformer("all-MiniLM-L6-v2")  # downloads to ~/.cache/
+# 4. Pre-download the embedding model for offline use
+python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('all-MiniLM-L6-v2')"
 ```
 
 ---
@@ -172,8 +179,13 @@ python -m app.ingestion.ingest \
 ## Running the Server
 
 ```bash
+# Simplest – works from the project root or from inside app/
+python main.py
+
+# Alternatively
 python -m app.main
-# or
+
+# Or with uvicorn directly
 uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
 
