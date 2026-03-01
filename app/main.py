@@ -9,6 +9,24 @@ Endpoints:
 """
 from __future__ import annotations
 
+import os as _os
+import sys as _sys
+
+# ---------------------------------------------------------------------------
+# Path bootstrap – must run before any `from app.*` imports.
+#
+# When this file is executed directly (e.g. `python main.py` from inside the
+# app/ directory, or `python app/main.py` from the project root), Python adds
+# *this file's directory* to sys.path rather than the project root.  That
+# means `from app.config import …` would look for app/app/config.py, which
+# does not exist.  The two lines below add the project root (parent of app/)
+# so that absolute `app.*` imports resolve correctly regardless of how the
+# file is invoked.
+# ---------------------------------------------------------------------------
+_project_root = _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))
+if _project_root not in _sys.path:
+    _sys.path.insert(0, _project_root)
+
 import json
 import logging
 import time
@@ -316,7 +334,9 @@ async def ui() -> HTMLResponse:
 def main() -> None:
     import uvicorn
 
-    uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=False)
+    # Pass the app object directly so uvicorn doesn't need to re-import the
+    # module via string reference (which could fail if sys.path is not set).
+    uvicorn.run(app, host=settings.server_host, port=settings.server_port, reload=False)
 
 
 if __name__ == "__main__":

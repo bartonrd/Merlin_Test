@@ -31,3 +31,7 @@ audit_log_path: "./data/audit.jsonl"
 
 # UI
 ui_enabled: true
+
+# Server binding
+server_host: "0.0.0.0"
+server_port: 8000

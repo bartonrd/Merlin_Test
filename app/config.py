@@ -61,6 +61,10 @@ class Settings(BaseSettings):
     # UI
     ui_enabled: bool = Field(True, description="Serve minimal web UI")
 
+    # Server binding (used by the uvicorn entry point)
+    server_host: str = Field("0.0.0.0", description="Host address for uvicorn")
+    server_port: int = Field(8000, description="Port for uvicorn")
+
     model_config = {"env_prefix": "MERLIN_", "case_sensitive": False}
 
 
