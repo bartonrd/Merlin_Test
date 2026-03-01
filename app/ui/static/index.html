@@ -44,19 +44,17 @@
       border-bottom: 1px solid var(--border);
       flex-shrink: 0;
     }
+    header .header-icon {
+      width: 56px;
+      height: 56px;
+      object-fit: contain;
+      flex-shrink: 0;
+    }
     header .logo {
       font-size: 1.35rem;
       font-weight: 700;
       letter-spacing: -.5px;
       color: var(--accent);
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-    header .logo img {
-      width: 28px;
-      height: 28px;
-      object-fit: contain;
     }
     header .subtitle { font-size: .8rem; color: var(--muted); }
     #health-dot {
@@ -260,8 +258,9 @@
 <body>
 
 <header>
+  <img src="/icon_merlin.png" alt="Merlin icon" class="header-icon" />
   <div>
-    <div class="logo"><img src="/icon_merlin.png" alt="Merlin icon" /> Merlin</div>
+    <div class="logo">Merlin</div>
     <div class="subtitle">Offline Document Assistant</div>
   </div>
   <div id="health-dot" title="LLM server status"></div>
