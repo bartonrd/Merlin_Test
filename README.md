@@ -24,8 +24,37 @@ Merlin is a self-hosted, offline-first document assistant (ChatGPT-style) that a
 
 ### 1. Install dependencies
 
+**Windows** – double-click `setup_requirements.bat` or run it from a terminal:
+
+```bat
+setup_requirements.bat
+```
+
+**Linux / macOS** – run the shell script:
+
 ```bash
-python -m venv .venv && source .venv/bin/activate
+bash setup_requirements.sh
+```
+
+Both scripts will:
+- Check that Python 3 is available
+- Create a `.venv` virtual environment in the project root (skipped if it already exists)
+- Upgrade pip and install everything in `requirements.txt`
+- Print the next steps when finished
+
+If you prefer to do it manually:
+
+```bash
+# Linux / macOS
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+```bat
+:: Windows
+python -m venv .venv
+.venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
