@@ -58,13 +58,58 @@ python -m venv .venv
 pip install -r requirements.txt
 ```
 
-### 2. Start a local LLM server
+### 2. Configure an LLM (choose one)
 
-Any OpenAI-compatible server works (llama.cpp, LM Studio, Ollama with the OpenAI compat layer):
+Merlin supports three LLM modes. Set `LLM_MODE` in a `.env` file at the project root
+(copy `.env.example` as a starting point):
+
+| Mode | When to use | What to do |
+|------|-------------|------------|
+| `none` | **Quickest start** – no model needed | Set `LLM_MODE=none` in `.env` – returns retrieved document excerpts without AI synthesis |
+| `remote` | **Default** – use an external server | Set `LLM_BASE_URL` to your running llama.cpp / Ollama / LM Studio server |
+| `local` | **Fully offline** – no separate server | Install `llama-cpp-python`, download a GGUF file, set `LLM_MODEL_PATH` |
+
+#### Option A – No LLM (search only)
+
+```ini
+# .env
+LLM_MODE=none
+```
+
+No extra software required. Chat responses will show the top-ranked document excerpts
+instead of an AI-generated answer.
+
+#### Option B – Remote server (default)
+
+Start any OpenAI-compatible server, e.g. llama.cpp:
 
 ```bash
-# Example with llama.cpp server
 ./llama-server -m ./models/mistral-7b.gguf --port 8080
+```
+
+Or Ollama:
+
+```bash
+ollama serve   # default port 11434
+# then set LLM_BASE_URL=http://localhost:11434 in .env
+```
+
+#### Option C – Local GGUF model (no server)
+
+```bash
+# 1. Install the Python bindings
+pip install llama-cpp-python
+
+# 2. Download a small GGUF model (~670 MB example)
+mkdir models
+curl -L -o models/tinyllama.Q4_K_M.gguf \
+  https://huggingface.co/TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF/resolve/main/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf
+```
+
+```ini
+# .env
+LLM_MODE=local
+LLM_MODEL_PATH=./models/tinyllama.Q4_K_M.gguf
 ```
 
 ### 3. Ingest your documents

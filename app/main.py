@@ -14,13 +14,13 @@ import json
 import logging
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from app.llm.client import LLMClient
+from app.llm.client import LLMClient, LocalLLMClient, NoLLMClient, get_llm_client
 from app.llm.prompting import build_chat_messages, format_citation
 from app.reasoning.router import route_and_retrieve
 from config import settings
@@ -93,10 +93,13 @@ class OpenAIChatResponse(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-def _get_llm_client() -> LLMClient:
-    return LLMClient(
+def _get_llm_client() -> Union[LLMClient, LocalLLMClient, NoLLMClient]:
+    return get_llm_client(
+        mode=settings.llm_mode,
         base_url=settings.llm_base_url,
         model=settings.llm_model,
+        model_path=settings.llm_model_path,
+        n_ctx=settings.llm_context_window,
     )
 
 

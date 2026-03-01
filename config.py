@@ -4,8 +4,14 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     # LLM settings
+    # llm_mode: "remote" | "local" | "none"
+    #   remote – connect to an external OpenAI-compatible HTTP server (llama.cpp, Ollama, …)
+    #   local  – run a GGUF model in-process via llama-cpp-python (set llm_model_path)
+    #   none   – return retrieved document excerpts without LLM synthesis
+    llm_mode: str = "remote"
     llm_base_url: str = "http://localhost:8080"
     llm_model: str = "local-model"
+    llm_model_path: str = ""  # path to a .gguf file when llm_mode=local
     llm_max_tokens: int = 2048
     llm_temperature: float = 0.1
     llm_context_window: int = 4096
