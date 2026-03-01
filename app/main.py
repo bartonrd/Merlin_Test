@@ -1,4 +1,15 @@
 """FastAPI application – Merlin offline document assistant."""
+# ---------------------------------------------------------------------------
+# Path bootstrap – must come before any project-relative imports so that
+# running `python main.py` from *inside* the app/ directory still works.
+# ---------------------------------------------------------------------------
+import sys as _sys
+from pathlib import Path as _Path
+
+_project_root = _Path(__file__).resolve().parent.parent
+if str(_project_root) not in _sys.path:
+    _sys.path.insert(0, str(_project_root))
+
 import json
 import logging
 from datetime import datetime, timezone
@@ -207,3 +218,9 @@ async def openai_chat(request: OpenAIChatRequest) -> Dict[str, Any]:
 _static_dir = Path(__file__).parent / "ui" / "static"
 if _static_dir.exists():
     app.mount("/", StaticFiles(directory=str(_static_dir), html=True), name="static")
+
+
+if __name__ == "__main__":
+    import uvicorn
+
+    uvicorn.run("app.main:app", host="127.0.0.1", port=8000, reload=False)
