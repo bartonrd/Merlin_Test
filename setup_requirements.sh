@@ -50,7 +50,34 @@ python -m pip install --upgrade pip --quiet
 python -m pip install -r requirements.txt
 
 # ------------------------------------------------------------------
-# 4. Done – print next steps
+# 4. Install llama-cpp-python (required for LLM_MODE=local)
+# ------------------------------------------------------------------
+echo ""
+if ! python -c "import llama_cpp" &>/dev/null 2>&1; then
+    echo "Installing llama-cpp-python (--prefer-binary) ..."
+    if ! python -m pip install llama-cpp-python --prefer-binary; then
+        echo ""
+        echo "WARNING: llama-cpp-python installation failed."
+        echo "         You can install it manually later with:"
+        echo "           pip install llama-cpp-python --prefer-binary"
+        echo ""
+    fi
+else
+    echo "llama-cpp-python already installed."
+fi
+
+# ------------------------------------------------------------------
+# 5. Auto-create .env from .env.example if not present
+# ------------------------------------------------------------------
+if [ ! -f ".env" ] && [ -f ".env.example" ]; then
+    cp .env.example .env
+    echo ""
+    echo "Created .env from .env.example"
+    echo "Edit .env to adjust settings (model path, mode, etc.)."
+fi
+
+# ------------------------------------------------------------------
+# 6. Done – print next steps
 # ------------------------------------------------------------------
 echo ""
 echo "=========================================================="

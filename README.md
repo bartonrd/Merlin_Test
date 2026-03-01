@@ -22,41 +22,30 @@ Merlin is a self-hosted, offline-first document assistant (ChatGPT-style) that a
 
 ## Quick Start
 
-### 1. Install dependencies
+### 1. Run `start.bat` (Windows) or `bash start.sh` (Linux / macOS)
 
-**Windows** – double-click `setup_requirements.bat` or run it from a terminal:
-
-```bat
-setup_requirements.bat
-```
-
-**Linux / macOS** – run the shell script:
-
-```bash
-bash setup_requirements.sh
-```
-
-Both scripts will:
-- Check that Python 3 is available
-- Create a `.venv` virtual environment in the project root (skipped if it already exists)
-- Upgrade pip and install everything in `requirements.txt`
-- Print the next steps when finished
-
-If you prefer to do it manually:
-
-```bash
-# Linux / macOS
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-```
+**Windows** – double-click `start.bat` or run it from a terminal:
 
 ```bat
-:: Windows
-python -m venv .venv
-.venv\Scripts\activate
-pip install -r requirements.txt
+start.bat
 ```
+
+**Linux / macOS**:
+
+```bash
+bash start.sh
+```
+
+Both scripts are fully self-contained and will, on every run:
+1. Check that Python 3 is available
+2. Create a `.venv` virtual environment (skipped if it already exists)
+3. Install / upgrade all dependencies from `requirements.txt`
+4. Install `llama-cpp-python` for local GGUF inference (`--prefer-binary` so no compiler needed)
+5. Create `.env` from `.env.example` the **first time** (skipped on subsequent runs)
+6. Start the Merlin server at `http://127.0.0.1:8000`
+
+> **Tip:** After the first run a `.env` file is created in the project root.
+> Open it to change settings – e.g. point `LLM_MODEL_PATH` at a different model file.
 
 ### 2. Configure an LLM (choose one)
 
@@ -65,54 +54,47 @@ Merlin supports three LLM modes. Set `LLM_MODE` in a `.env` file at the project 
 
 | Mode | When to use | What to do |
 |------|-------------|------------|
-| `none` | **Quickest start** – no model needed | Set `LLM_MODE=none` in `.env` – returns retrieved document excerpts without AI synthesis |
-| `remote` | **Default** – use an external server | Set `LLM_BASE_URL` to your running llama.cpp / Ollama / LM Studio server |
-| `local` | **Fully offline** – no separate server | Install `llama-cpp-python`, download a GGUF file, set `LLM_MODEL_PATH` |
+| `local` | **Default** – fully offline, no separate server | `llama-cpp-python` is installed automatically by `start.bat`/`start.sh`; set `LLM_MODEL_PATH` in `.env` |
+| `none` | Quickest start – no model needed | Set `LLM_MODE=none` in `.env` – returns retrieved document excerpts without AI synthesis |
+| `remote` | External server | Set `LLM_BASE_URL` to your running llama.cpp / Ollama / LM Studio server |
 
-#### Option A – No LLM (search only)
+#### Option A – Local GGUF model (default, no server needed)
+
+`start.bat` / `start.sh` automatically installs `llama-cpp-python`. Just set the model path in `.env`:
+
+```ini
+# .env  (created automatically from .env.example on first run)
+LLM_MODE=local
+LLM_MODEL_PATH=C:\dev\_models\mistral-7b-instruct-v0.1.Q5_K_S.gguf
+```
+
+Change `LLM_MODEL_PATH` to point at any `.gguf` file on your machine.
+
+#### Option B – No LLM (search only)
 
 ```ini
 # .env
 LLM_MODE=none
 ```
 
-No extra software required. Chat responses will show the top-ranked document excerpts
-instead of an AI-generated answer.
+No model required. Chat responses show the top-ranked document excerpts.
 
-#### Option B – Remote server (default)
-
-Start any OpenAI-compatible server, e.g. llama.cpp:
-
-```bash
-./llama-server -m ./models/mistral-7b.gguf --port 8080
-```
-
-Or Ollama:
-
-```bash
-ollama serve   # default port 11434
-# then set LLM_BASE_URL=http://localhost:11434 in .env
-```
-
-#### Option C – Local GGUF model (no server)
-
-```bash
-# 1. Install the Python bindings
-pip install llama-cpp-python
-
-# 2. Download a small GGUF model (~670 MB example)
-mkdir models
-curl -L -o models/tinyllama.Q4_K_M.gguf \
-  https://huggingface.co/TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF/resolve/main/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf
-```
+#### Option C – Remote OpenAI-compatible server
 
 ```ini
 # .env
-LLM_MODE=local
-LLM_MODEL_PATH=./models/tinyllama.Q4_K_M.gguf
+LLM_MODE=remote
+LLM_BASE_URL=http://localhost:8080
 ```
 
-### 3. Ingest your documents
+Start any OpenAI-compatible server separately, e.g.:
+
+```bash
+./llama-server -m ./models/mistral-7b.gguf --port 8080
+# or: ollama serve
+```
+
+### 2. Ingest your documents
 
 ```bash
 python -m app.ingestion.ingest --input ./docs
@@ -124,21 +106,10 @@ This will:
 - Chunk documents with type-aware strategies
 - Build a SQLite FTS5 BM25 index and a FAISS vector index
 
-### 4. Start the server
+### 3. Start the server
 
-**Easiest – double-click (Windows) or run the launcher script:**
-
-```bat
-:: Windows – from the project root or any directory
-start.bat
-```
-
-```bash
-# Linux / macOS
-bash start.sh
-```
-
-Both scripts activate the `.venv` automatically before starting the server.
+`start.bat` (Windows) and `start.sh` (Linux/macOS) handle setup **and** launch in one step.
+Just run them again whenever you want to start Merlin – they are safe to run multiple times.
 
 **Or manually (after activating the venv):**
 

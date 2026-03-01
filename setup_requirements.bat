@@ -67,7 +67,38 @@ if errorlevel 1 (
 )
 
 :: ------------------------------------------------------------------
-:: 4. Done – print next steps
+:: 4. Install llama-cpp-python (required for LLM_MODE=local)
+:: ------------------------------------------------------------------
+echo.
+python -c "import llama_cpp" >nul 2>&1
+if errorlevel 1 (
+    echo Installing llama-cpp-python ^(--prefer-binary^) ...
+    python -m pip install llama-cpp-python --prefer-binary
+    if errorlevel 1 (
+        echo.
+        echo WARNING: llama-cpp-python installation failed.
+        echo          You can install it manually later with:
+        echo            pip install llama-cpp-python --prefer-binary
+        echo.
+    )
+) else (
+    echo llama-cpp-python already installed.
+)
+
+:: ------------------------------------------------------------------
+:: 5. Auto-create .env from .env.example if not present
+:: ------------------------------------------------------------------
+if not exist ".env" (
+    if exist ".env.example" (
+        copy ".env.example" ".env" >nul
+        echo.
+        echo Created .env from .env.example
+        echo Edit .env to adjust settings ^(model path, mode, etc.^).
+    )
+)
+
+:: ------------------------------------------------------------------
+:: 6. Done – print next steps
 :: ------------------------------------------------------------------
 echo.
 echo ==========================================================
