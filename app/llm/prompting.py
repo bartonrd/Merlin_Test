@@ -1,5 +1,5 @@
 """Prompt-building utilities for the document assistant."""
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from app.retrieval.bm25 import SearchResult
 
@@ -69,9 +69,11 @@ def build_chat_messages(
     is_triage: bool = False,
     expand: bool = False,
     max_context_chars: int = 6000,
+    system_prompt: Optional[str] = None,
 ) -> List[Dict[str, str]]:
     """Build the messages list for a chat completion request."""
-    system_prompt = TRIAGE_SYSTEM_PROMPT if is_triage else SYSTEM_PROMPT
+    if system_prompt is None:
+        system_prompt = TRIAGE_SYSTEM_PROMPT if is_triage else SYSTEM_PROMPT
     context_block = format_context(context_results, max_chars=max_context_chars)
 
     user_content = f"{context_block}\n\n{user_query}"

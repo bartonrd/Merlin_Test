@@ -112,6 +112,12 @@ class OpenAIChatRequest(BaseModel):
     stream: bool = False
 
 
+class GenerateRequest(BaseModel):
+    prompt: str
+    system_prompt: Optional[str] = None
+    temperature: Optional[float] = None
+
+
 class OpenAIChatResponse(BaseModel):
     id: str = "chatcmpl-merlin"
     object: str = "chat.completion"
@@ -206,6 +212,63 @@ async def chat(request: ChatRequest) -> ChatResponse:
     if not request.message.strip():
         raise HTTPException(status_code=400, detail="message must not be empty")
     return _handle_query(request.message, expand=request.expand)
+
+
+@app.post("/generate", response_model=ChatResponse)
+async def generate(request: GenerateRequest) -> ChatResponse:
+    """External API endpoint for integrations (e.g. Nodecraft).
+
+    Accepts a prompt, an optional system prompt, and an optional temperature.
+    """
+    if not request.prompt.strip():
+        raise HTTPException(status_code=400, detail="prompt must not be empty")
+
+    results, is_triage = route_and_retrieve(
+        query=request.prompt,
+        db_path=settings.db_path,
+        faiss_path=settings.faiss_path,
+        faiss_map_path=settings.faiss_map_path,
+    )
+
+    messages = build_chat_messages(
+        user_query=request.prompt,
+        context_results=results,
+        is_triage=is_triage,
+        max_context_chars=settings.max_context_chars,
+        system_prompt=request.system_prompt,
+    )
+
+    temperature = request.temperature if request.temperature is not None else settings.llm_temperature
+
+    llm = _get_llm_client()
+    try:
+        answer = llm.chat(
+            messages=messages,
+            max_tokens=settings.llm_max_tokens,
+            temperature=temperature,
+        )
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+    citations = [format_citation(r) for r in results]
+    chunk_ids = [r.chunk_id for r in results]
+
+    _audit(
+        {
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "query": request.prompt,
+            "chunk_ids": chunk_ids,
+            "answer": answer,
+            "is_triage": is_triage,
+        }
+    )
+
+    return ChatResponse(
+        answer=answer,
+        citations=citations,
+        is_triage=is_triage,
+        chunk_ids=chunk_ids,
+    )
 
 
 @app.post("/v1/chat/completions")
