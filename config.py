@@ -37,6 +37,13 @@ class Settings(BaseSettings):
     # Context limits
     max_context_chars: int = 6000
 
+    # API access control
+    # api_key: set to a non-empty string to require `X-API-Key: <value>` on /chat and /v1/chat/completions.
+    # Leave blank (default) to allow unauthenticated access.
+    api_key: str = ""
+    # cors_origins: comma-separated list of allowed origins for CORS, or "*" to allow all.
+    cors_origins: str = "*"
+
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
 

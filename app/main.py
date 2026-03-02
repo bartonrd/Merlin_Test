@@ -17,7 +17,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Security
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import APIKeyHeader
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -80,6 +82,34 @@ async def lifespan(app: FastAPI):  # type: ignore[type-arg]
 # ---------------------------------------------------------------------------
 
 app = FastAPI(title="Merlin - Offline Document Assistant", version="1.0.0", lifespan=lifespan)
+
+# ---------------------------------------------------------------------------
+# CORS – allow external applications to call the API from a browser context.
+# Configure CORS_ORIGINS in .env (comma-separated list, or "*" to allow all).
+# ---------------------------------------------------------------------------
+
+_cors_origins = [o.strip() for o in settings.cors_origins.split(",") if o.strip()]
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=_cors_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# ---------------------------------------------------------------------------
+# Optional API key authentication.
+# Set API_KEY in .env to a non-empty string to protect /chat and
+# /v1/chat/completions.  Leave blank to allow unauthenticated access.
+# ---------------------------------------------------------------------------
+
+_api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
+
+
+async def _require_api_key(api_key: str = Security(_api_key_header)) -> None:
+    """FastAPI dependency: enforce API key when one is configured."""
+    if settings.api_key and api_key != settings.api_key:
+        raise HTTPException(status_code=401, detail="Invalid or missing API key")
 
 # ---------------------------------------------------------------------------
 # Pydantic models
@@ -201,7 +231,7 @@ async def health() -> Dict[str, Any]:
 
 
 @app.post("/chat", response_model=ChatResponse)
-async def chat(request: ChatRequest) -> ChatResponse:
+async def chat(request: ChatRequest, _: None = Depends(_require_api_key)) -> ChatResponse:
     """Simple chat endpoint."""
     if not request.message.strip():
         raise HTTPException(status_code=400, detail="message must not be empty")
@@ -209,7 +239,7 @@ async def chat(request: ChatRequest) -> ChatResponse:
 
 
 @app.post("/v1/chat/completions")
-async def openai_chat(request: OpenAIChatRequest) -> Dict[str, Any]:
+async def openai_chat(request: OpenAIChatRequest, _: None = Depends(_require_api_key)) -> Dict[str, Any]:
     """OpenAI-compatible chat completions endpoint."""
     if not request.messages:
         raise HTTPException(status_code=400, detail="messages must not be empty")

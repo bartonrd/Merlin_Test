@@ -182,7 +182,11 @@ All settings can be overridden via environment variables or a `.env` file:
 
 ---
 
-## API Endpoints
+## API Reference
+
+Merlin exposes a REST API that any application can call to submit questions and receive answers.  The server must be running (`python main.py` or `start.bat`/`start.sh`) before requests can be made.
+
+### Endpoints
 
 | Method | Path | Description |
 |---|---|---|
@@ -190,6 +194,137 @@ All settings can be overridden via environment variables or a `.env` file:
 | `POST` | `/chat` | Simple chat (`{message, conversation_id?, expand?}`) |
 | `POST` | `/v1/chat/completions` | OpenAI-compatible completions |
 | `GET` | `/` | Chat UI (served from `app/ui/static/`) |
+
+### `/chat` – simple JSON API
+
+**Request**
+
+```json
+POST http://localhost:8000/chat
+Content-Type: application/json
+
+{
+  "message": "What are the steps to restart the payments service?",
+  "expand": false
+}
+```
+
+**Response**
+
+```json
+{
+  "answer": "To restart the payments service …",
+  "citations": ["runbooks/payments.md § Restart procedure"],
+  "is_triage": false,
+  "chunk_ids": [42, 17]
+}
+```
+
+#### curl
+
+```bash
+curl -s -X POST http://localhost:8000/chat \
+  -H "Content-Type: application/json" \
+  -d '{"message": "How do I restart the payments service?"}'
+```
+
+#### Python (`httpx`)
+
+```python
+import httpx
+
+response = httpx.post(
+    "http://localhost:8000/chat",
+    json={"message": "How do I restart the payments service?"},
+)
+data = response.json()
+print(data["answer"])
+for citation in data["citations"]:
+    print(" •", citation)
+```
+
+#### Python (`requests`)
+
+```python
+import requests
+
+response = requests.post(
+    "http://localhost:8000/chat",
+    json={"message": "How do I restart the payments service?"},
+)
+data = response.json()
+print(data["answer"])
+```
+
+### `/v1/chat/completions` – OpenAI-compatible API
+
+Any client that supports the OpenAI API (LangChain, LlamaIndex, Open WebUI, etc.) can point its `base_url` at Merlin:
+
+```python
+from openai import OpenAI
+
+client = OpenAI(base_url="http://localhost:8000/v1", api_key="unused")
+completion = client.chat.completions.create(
+    model="local-model",
+    messages=[{"role": "user", "content": "What runbooks cover database failover?"}],
+)
+print(completion.choices[0].message.content)
+```
+
+#### curl
+
+```bash
+curl -s -X POST http://localhost:8000/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "local-model",
+    "messages": [{"role": "user", "content": "What runbooks cover database failover?"}]
+  }'
+```
+
+### API Key authentication (optional)
+
+By default the API is open. To restrict access, set `API_KEY` in your `.env` file:
+
+```ini
+API_KEY=change-me-to-a-secret-value
+```
+
+Then include the key in every request using the `X-API-Key` header:
+
+```bash
+curl -s -X POST http://localhost:8000/chat \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: change-me-to-a-secret-value" \
+  -d '{"message": "What is the on-call escalation path?"}'
+```
+
+```python
+import httpx
+
+response = httpx.post(
+    "http://localhost:8000/chat",
+    headers={"X-API-Key": "change-me-to-a-secret-value"},
+    json={"message": "What is the on-call escalation path?"},
+)
+```
+
+Requests without a valid key will receive `401 Unauthorized`.
+
+### CORS (cross-origin browser requests)
+
+If you are calling the API from a web application running on a different origin, configure `CORS_ORIGINS` in `.env`:
+
+```ini
+# Allow a specific app origin
+CORS_ORIGINS=https://my-internal-app.example.com
+
+# Allow multiple origins (comma-separated)
+CORS_ORIGINS=https://app1.example.com,https://app2.example.com
+
+# Allow all origins (default – fine for local / internal networks)
+CORS_ORIGINS=*
+```
 
 ---
 
