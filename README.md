@@ -188,8 +188,99 @@ All settings can be overridden via environment variables or a `.env` file:
 |---|---|---|
 | `GET` | `/health` | Health check (LLM reachability) |
 | `POST` | `/chat` | Simple chat (`{message, conversation_id?, expand?}`) |
+| `POST` | `/generate` | External integration endpoint (`{prompt, system_prompt?, temperature?}`) |
 | `POST` | `/v1/chat/completions` | OpenAI-compatible completions |
 | `GET` | `/` | Chat UI (served from `app/ui/static/`) |
+
+---
+
+### POST `/generate`
+
+Integration endpoint designed for external applications (e.g. Nodecraft). It accepts a freeform prompt, runs hybrid retrieval against the indexed documents, calls the configured LLM, and returns the answer with source citations.
+
+#### Request
+
+`Content-Type: application/json`
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `prompt` | string | **Yes** | The question or instruction to send to Merlin. Must be non-empty. |
+| `system_prompt` | string | No | Optional system-level instructions that override Merlin's default system prompt for this request. |
+| `temperature` | float | No | Sampling temperature (0.0 – 1.0). Defaults to `LLM_TEMPERATURE` from `.env` (default `0.1`). Lower values produce more deterministic answers. |
+
+**Minimal request body**
+
+```json
+{
+  "prompt": "What are the steps to restore power after a relay trip?"
+}
+```
+
+**Full request body**
+
+```json
+{
+  "prompt": "What are the steps to restore power after a relay trip?",
+  "system_prompt": "You are a senior power systems engineer. Be concise.",
+  "temperature": 0.2
+}
+```
+
+#### Response
+
+`Content-Type: application/json`
+
+| Field | Type | Description |
+|---|---|---|
+| `answer` | string | The LLM-generated answer (or retrieved excerpts when `LLM_MODE=none`). |
+| `citations` | array of strings | Formatted source references for every document chunk used to build the answer (e.g. `"runbook.md § Relay Trip Procedure"`). Empty when no relevant chunks were found. |
+| `is_triage` | boolean | `true` when Merlin detected an error log or stack trace and switched to structured SRE triage mode. |
+| `chunk_ids` | array of integers | Internal IDs of the retrieved document chunks — useful for debugging retrieval quality. |
+
+**Example response**
+
+```json
+{
+  "answer": "To restore power after a relay trip: 1. Verify the fault has cleared…",
+  "citations": ["relay-runbook.md § Relay Trip Recovery", "incident-2024-03.md § Timeline"],
+  "is_triage": false,
+  "chunk_ids": [42, 17]
+}
+```
+
+#### Examples
+
+**curl**
+
+```bash
+curl -X POST http://localhost:8000/generate \
+     -H "Content-Type: application/json" \
+     -d '{"prompt": "What are the steps to restore power after a relay trip?"}'
+```
+
+**Python (`requests`)**
+
+```python
+import requests
+
+response = requests.post(
+    "http://localhost:8000/generate",
+    json={"prompt": "What are the steps to restore power after a relay trip?"},
+)
+response.raise_for_status()
+data = response.json()
+print(data["answer"])
+for citation in data["citations"]:
+    print(" -", citation)
+```
+
+#### Error responses
+
+| HTTP status | When it occurs |
+|---|---|
+| `400 Bad Request` | `prompt` is present but blank/whitespace-only. |
+| `422 Unprocessable Entity` | Request body is missing the required `prompt` field. |
+| `503 Service Unavailable` | The LLM server is unreachable, timed out, or returned an error. The `detail` field of the JSON body contains the specific reason. |
 
 ---
 
