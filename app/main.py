@@ -79,7 +79,7 @@ async def lifespan(app: FastAPI):  # type: ignore[type-arg]
 # FastAPI app
 # ---------------------------------------------------------------------------
 
-app = FastAPI(title="Merlin - Offline Document Assistant", version="1.0.0", lifespan=lifespan)
+app = FastAPI(title="Merlin - Power System Apps Agent", version="1.0.0", lifespan=lifespan)
 
 # ---------------------------------------------------------------------------
 # Pydantic models
