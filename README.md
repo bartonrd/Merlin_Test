@@ -2,6 +2,8 @@
 
 Merlin is a self-hosted, Power System Apps Agent (ChatGPT-style) that answers questions and triages incidents using your own internal runbooks, architecture documents, and incident history — powered by a local LLM (e.g. llama.cpp) and hybrid BM25 + FAISS vector search.
 
+> **A C# / ASP.NET Core version is available in [`Merlin.CSharp/`](Merlin.CSharp/README.md)** – same API, same chat UI, no Python required.
+
 ---
 
 ## Features

@@ -24,6 +24,7 @@ data/*.sqlite
 data/*.faiss
 data/*.pkl
 data/audit*.log
+data/*.bin
 
 # IDE
 .idea/
@@ -41,3 +42,11 @@ htmlcov/
 # Distribution
 *.tar.gz
 *.whl
+
+# C# / .NET build artifacts
+Merlin.CSharp/**/bin/
+Merlin.CSharp/**/obj/
+Merlin.CSharp/**/*.user
+Merlin.CSharp/**/*.suo
+Merlin.CSharp/.vs/
+Merlin.CSharp/**/.vs/
