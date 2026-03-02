@@ -4,6 +4,8 @@ from typing import List, Optional
 import numpy as np
 from sentence_transformers import SentenceTransformer
 
+from config import settings
+
 _model: Optional[SentenceTransformer] = None
 _model_name: Optional[str] = None
 
@@ -12,7 +14,11 @@ def get_model(model_name: str, device: str = "cpu") -> SentenceTransformer:
     """Lazy-load the embedding model (singleton per process)."""
     global _model, _model_name
     if _model is None or _model_name != model_name:
-        _model = SentenceTransformer(model_name, device=device)
+        _model = SentenceTransformer(
+            model_name,
+            device=device,
+            local_files_only=settings.embed_local_files_only,
+        )
         _model_name = model_name
     return _model
 

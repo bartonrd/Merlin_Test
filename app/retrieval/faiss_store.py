@@ -9,6 +9,7 @@ import numpy as np
 
 from app.ingestion.embed import embed_texts
 from app.retrieval.bm25 import SearchResult
+from config import settings
 
 
 def vector_search(
@@ -51,6 +52,7 @@ def vector_search(
         (faiss_map[int(idx)], float(scores[0][rank]))
         for rank, idx in enumerate(indices[0])
         if int(idx) != -1 and int(idx) in faiss_map
+        and float(scores[0][rank]) >= settings.min_vector_score
     ]
 
     if not candidate_db_ids:

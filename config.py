@@ -19,11 +19,13 @@ class Settings(BaseSettings):
     # Embedding settings
     embed_model: str = "all-MiniLM-L6-v2"
     embed_device: str = "cpu"
+    embed_local_files_only: bool = False
 
     # Retrieval settings
     top_k_bm25: int = 10
     top_k_vector: int = 10
     top_k_final: int = 5
+    min_vector_score: float = 0.3
     reranker_enabled: bool = False
     reranker_model: str = "cross-encoder/ms-marco-MiniLM-L-6-v2"
 
