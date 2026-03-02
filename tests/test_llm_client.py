@@ -2,6 +2,7 @@
 import sys
 from unittest.mock import MagicMock, patch
 
+import httpx
 import pytest
 
 from app.llm.client import (
@@ -66,6 +67,19 @@ def test_local_llm_client_health_check_false_on_missing_dep():
     client = LocalLLMClient(model_path="/tmp/nonexistent.gguf")
     with patch.dict(sys.modules, {"llama_cpp": None}):
         assert client.health_check() is False
+
+
+# ---------------------------------------------------------------------------
+# LLMClient – timeout handling
+# ---------------------------------------------------------------------------
+
+
+def test_llm_client_timeout_raises_runtime_error():
+    """httpx.TimeoutException should be converted to a RuntimeError."""
+    client = LLMClient(base_url="http://localhost:8080", model="test-model")
+    with patch("httpx.post", side_effect=httpx.TimeoutException("timed out")):
+        with pytest.raises(RuntimeError, match="did not respond within"):
+            client.chat([{"role": "user", "content": "hello"}])
 
 
 # ---------------------------------------------------------------------------

@@ -40,6 +40,11 @@ class LLMClient:
                 timeout=self.timeout,
             )
             response.raise_for_status()
+        except httpx.TimeoutException as exc:
+            raise RuntimeError(
+                f"LLM server at {self.base_url} did not respond within {self.timeout}s. "
+                "The model may still be loading or the request was too large."
+            ) from exc
         except httpx.ConnectError as exc:
             raise RuntimeError(
                 f"Cannot connect to LLM server at {self.base_url}. "

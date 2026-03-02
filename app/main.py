@@ -195,7 +195,7 @@ def _handle_query(query: str, expand: bool = False) -> ChatResponse:
 
 
 @app.get("/health")
-async def health() -> Dict[str, Any]:
+def health() -> Dict[str, Any]:
     """Health check endpoint."""
     llm = _get_llm_client()
     return {
@@ -207,7 +207,7 @@ async def health() -> Dict[str, Any]:
 
 
 @app.post("/chat", response_model=ChatResponse)
-async def chat(request: ChatRequest) -> ChatResponse:
+def chat(request: ChatRequest) -> ChatResponse:
     """Simple chat endpoint."""
     if not request.message.strip():
         raise HTTPException(status_code=400, detail="message must not be empty")
@@ -215,7 +215,7 @@ async def chat(request: ChatRequest) -> ChatResponse:
 
 
 @app.post("/generate", response_model=ChatResponse)
-async def generate(request: GenerateRequest) -> ChatResponse:
+def generate(request: GenerateRequest) -> ChatResponse:
     """External API endpoint for integrations (e.g. Nodecraft).
 
     Accepts a prompt, an optional system prompt, and an optional temperature.
@@ -272,7 +272,7 @@ async def generate(request: GenerateRequest) -> ChatResponse:
 
 
 @app.post("/v1/chat/completions")
-async def openai_chat(request: OpenAIChatRequest) -> Dict[str, Any]:
+def openai_chat(request: OpenAIChatRequest) -> Dict[str, Any]:
     """OpenAI-compatible chat completions endpoint."""
     if not request.messages:
         raise HTTPException(status_code=400, detail="messages must not be empty")

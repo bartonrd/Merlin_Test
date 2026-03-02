@@ -157,3 +157,23 @@ def test_generate_missing_prompt_returns_422():
         response = client.post("/generate", json={})
 
     assert response.status_code == 422
+
+
+def test_generate_llm_timeout_returns_503():
+    """A RuntimeError from the LLM (e.g. timeout) should yield HTTP 503."""
+    with (
+        patch("app.main.ingest_directory"),
+        patch("app.main.route_and_retrieve", return_value=(_FAKE_RESULTS, False)),
+        patch("app.main.get_llm_client") as mock_factory,
+        patch("app.main._audit"),
+    ):
+        mock_llm = MagicMock()
+        mock_llm.chat.side_effect = RuntimeError("LLM server did not respond within 120s")
+        mock_factory.return_value = mock_llm
+
+        from app.main import app
+
+        client = TestClient(app, raise_server_exceptions=False)
+        response = client.post("/generate", json={"prompt": "hello"})
+
+    assert response.status_code == 503
