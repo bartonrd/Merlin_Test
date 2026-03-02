@@ -1,6 +1,6 @@
-# ⚡ Merlin – Offline Document Assistant
+# ⚡ Merlin – Power System Apps Agent
 
-Merlin is a self-hosted, offline-first document assistant (ChatGPT-style) that answers questions and triages incidents using your own internal runbooks, architecture documents, and incident history — powered by a local LLM (e.g. llama.cpp) and hybrid BM25 + FAISS vector search.
+Merlin is a self-hosted, Power System Apps Agent (ChatGPT-style) that answers questions and triages incidents using your own internal runbooks, architecture documents, and incident history — powered by a local LLM (e.g. llama.cpp) and hybrid BM25 + FAISS vector search.
 
 ---
 
