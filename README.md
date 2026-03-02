@@ -193,6 +193,7 @@ Merlin exposes a REST API that any application can call to submit questions and 
 | `GET` | `/health` | Health check (LLM reachability) |
 | `POST` | `/chat` | Simple chat (`{message, conversation_id?, expand?}`) |
 | `POST` | `/v1/chat/completions` | OpenAI-compatible completions |
+| `POST` | `/api/generate` | Ollama-compatible generate endpoint |
 | `GET` | `/` | Chat UI (served from `app/ui/static/`) |
 
 ### `/chat` – simple JSON API
@@ -280,6 +281,70 @@ curl -s -X POST http://localhost:8000/v1/chat/completions \
     "model": "local-model",
     "messages": [{"role": "user", "content": "What runbooks cover database failover?"}]
   }'
+```
+
+### `/api/generate` – Ollama-compatible generate endpoint
+
+Merlin understands the same request/response format as [Ollama's](https://ollama.com) `POST /api/generate` endpoint.
+Any tool or library that supports Ollama can point its base URL at `http://localhost:8000` and work with Merlin without any changes.
+
+**Request**
+
+```json
+POST http://localhost:8000/api/generate
+Content-Type: application/json
+
+{
+  "model": "merlin",
+  "prompt": "What are the steps to restart the payments service?",
+  "stream": false
+}
+```
+
+**Response**
+
+```json
+{
+  "model": "merlin",
+  "created_at": "2024-01-15T10:30:00.000000Z",
+  "response": "To restart the payments service … \n\n**Sources:** runbooks/payments.md § Restart procedure",
+  "done": true,
+  "done_reason": "stop"
+}
+```
+
+#### curl
+
+```bash
+curl -s -X POST http://localhost:8000/api/generate \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "merlin",
+    "prompt": "What are the steps to restart the payments service?"
+  }'
+```
+
+#### Python (`httpx`)
+
+```python
+import httpx
+
+response = httpx.post(
+    "http://localhost:8000/api/generate",
+    json={"model": "merlin", "prompt": "What are the steps to restart the payments service?"},
+)
+data = response.json()
+print(data["response"])
+```
+
+#### Ollama Python client
+
+```python
+from ollama import Client
+
+client = Client(host="http://localhost:8000")
+result = client.generate(model="merlin", prompt="What runbooks cover database failover?")
+print(result["response"])
 ```
 
 ### API Key authentication (optional)

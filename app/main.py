@@ -150,6 +150,13 @@ class OpenAIChatResponse(BaseModel):
     choices: List[Dict[str, Any]]
 
 
+class OllamaGenerateRequest(BaseModel):
+    model: str = "merlin"
+    prompt: str
+    system: Optional[str] = None
+    stream: bool = False
+
+
 # ---------------------------------------------------------------------------
 # Shared retrieval + LLM logic
 # ---------------------------------------------------------------------------
@@ -273,6 +280,35 @@ async def openai_chat(request: OpenAIChatRequest, _: None = Depends(_require_api
             }
         ],
         "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
+    }
+
+
+@app.post("/api/generate")
+async def ollama_generate(request: OllamaGenerateRequest, _: None = Depends(_require_api_key)) -> Dict[str, Any]:
+    """Ollama-compatible generate endpoint.
+
+    Accepts the same request shape as ``POST /api/generate`` on an Ollama server,
+    making Merlin a drop-in replacement for tools that speak the Ollama protocol.
+    """
+    if not request.prompt.strip():
+        raise HTTPException(status_code=400, detail="prompt must not be empty")
+
+    response = _handle_query(request.prompt)
+
+    # Append citations to the response text
+    citation_block = ""
+    if response.citations:
+        citation_block = "\n\n**Sources:** " + " | ".join(response.citations)
+
+    full_response = response.answer + citation_block
+
+    created_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+    return {
+        "model": request.model,
+        "created_at": created_at,
+        "response": full_response,
+        "done": True,
+        "done_reason": "stop",
     }
 
 
