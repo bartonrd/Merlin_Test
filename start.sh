@@ -55,13 +55,24 @@ fi
 # shellcheck disable=SC1091
 source .venv/bin/activate
 
+# PIP_EXTRA_ARGS can be overridden in your environment.
+# The default bypasses SSL certificate verification for PyPI hosts, which is
+# required in corporate networks that use self-signed SSL inspection proxies.
+# To use a corporate CA bundle instead, set:
+#   export PIP_EXTRA_ARGS="--cert /path/to/corporate-ca.crt"
+# To use standard SSL verification (no proxy), set:
+#   export PIP_EXTRA_ARGS=""
+PIP_EXTRA_ARGS="${PIP_EXTRA_ARGS:---trusted-host pypi.org --trusted-host pypi.python.org --trusted-host files.pythonhosted.org}"
+
 # ------------------------------------------------------------------
 # 3. Install / upgrade core dependencies
 # ------------------------------------------------------------------
 echo ""
 echo "Installing dependencies from requirements.txt ..."
-python -m pip install --upgrade pip --quiet
-python -m pip install -r requirements.txt
+# shellcheck disable=SC2086
+python -m pip install --upgrade pip --quiet $PIP_EXTRA_ARGS
+# shellcheck disable=SC2086
+python -m pip install -r requirements.txt $PIP_EXTRA_ARGS
 
 # ------------------------------------------------------------------
 # 4. Install llama-cpp-python (required for LLM_MODE=local)
@@ -70,7 +81,8 @@ python -m pip install -r requirements.txt
 echo ""
 if ! python -c "import llama_cpp" &>/dev/null 2>&1; then
     echo "Installing llama-cpp-python (this may take a moment) ..."
-    if ! python -m pip install llama-cpp-python --prefer-binary; then
+    # shellcheck disable=SC2086
+    if ! python -m pip install llama-cpp-python --prefer-binary $PIP_EXTRA_ARGS; then
         echo ""
         echo "WARNING: llama-cpp-python installation failed."
         echo "         If you are using LLM_MODE=remote or LLM_MODE=none you can ignore this."
