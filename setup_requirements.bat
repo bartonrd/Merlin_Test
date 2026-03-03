@@ -57,8 +57,16 @@ if "%VENV_MISSING%"=="1" (
 echo.
 echo Installing dependencies from requirements.txt ...
 call .venv\Scripts\activate.bat
-python -m pip install --upgrade pip --quiet
-python -m pip install -r requirements.txt
+:: PIP_EXTRA_ARGS can be overridden in your environment.
+:: The default bypasses SSL certificate verification for PyPI hosts, which is
+:: required in corporate networks that use self-signed SSL inspection proxies.
+:: To use a corporate CA bundle instead, set:
+::   set PIP_EXTRA_ARGS=--cert "C:\path\to\corporate-ca.crt"
+:: To use standard SSL verification (no proxy), set:
+::   set PIP_EXTRA_ARGS=
+if not defined PIP_EXTRA_ARGS set "PIP_EXTRA_ARGS=--trusted-host pypi.org --trusted-host pypi.python.org --trusted-host files.pythonhosted.org"
+python -m pip install --upgrade pip --quiet %PIP_EXTRA_ARGS%
+python -m pip install -r requirements.txt %PIP_EXTRA_ARGS%
 if errorlevel 1 (
     echo.
     echo ERROR: pip install failed. See output above for details.
@@ -73,7 +81,7 @@ echo.
 python -c "import llama_cpp" >nul 2>&1
 if errorlevel 1 (
     echo Installing llama-cpp-python ^(--prefer-binary^) ...
-    python -m pip install llama-cpp-python --prefer-binary
+    python -m pip install llama-cpp-python --prefer-binary %PIP_EXTRA_ARGS%
     if errorlevel 1 (
         echo.
         echo WARNING: llama-cpp-python installation failed.
