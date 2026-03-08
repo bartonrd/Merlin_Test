@@ -70,20 +70,21 @@
 
     /* Refresh button */
     #refresh-btn {
-      background: var(--surface2);
-      border: 1px solid var(--border);
+      background: transparent;
+      border: 1px solid var(--accent2);
       border-radius: var(--radius);
-      color: var(--muted);
-      padding: 6px 12px;
+      color: var(--accent2);
+      padding: 6px 14px;
       font-size: .78rem;
       font-weight: 600;
       cursor: pointer;
       transition: all .15s;
       white-space: nowrap;
+      flex-shrink: 0;
       margin-left: 12px;
     }
-    #refresh-btn:hover:not(:disabled) { border-color: var(--accent2); color: var(--accent2); }
-    #refresh-btn:disabled { opacity: .5; cursor: not-allowed; }
+    #refresh-btn:hover:not(:disabled) { background: var(--accent2); color: #0f1117; }
+    #refresh-btn:disabled { opacity: .4; cursor: not-allowed; }
 
     /* ── Chat area ── */
     #chat {
