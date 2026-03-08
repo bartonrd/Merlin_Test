@@ -118,6 +118,11 @@ class GenerateRequest(BaseModel):
     temperature: Optional[float] = None
 
 
+class ReindexResponse(BaseModel):
+    new_chunks: int
+    message: str
+
+
 class OpenAIChatResponse(BaseModel):
     id: str = "chatcmpl-merlin"
     object: str = "chat.completion"
@@ -204,6 +209,40 @@ def health() -> Dict[str, Any]:
         "db_path": settings.db_path,
         "faiss_path": settings.faiss_path,
     }
+
+
+@app.post("/reindex", response_model=ReindexResponse)
+def reindex() -> ReindexResponse:
+    """Re-ingest all documents from the configured docs directory.
+
+    Clears the existing index and rebuilds it from scratch so that
+    updated or deleted documents are reflected immediately.
+    """
+    docs_dir = Path(settings.docs_dir)
+    if not docs_dir.exists():
+        raise HTTPException(
+            status_code=404,
+            detail=f"Documents directory not found: {settings.docs_dir}",
+        )
+    try:
+        new_chunks = ingest_directory(
+            input_dir=docs_dir,
+            db_path=settings.db_path,
+            faiss_path=settings.faiss_path,
+            faiss_map_path=settings.faiss_map_path,
+            clear=True,
+            skip_known=False,
+        )
+    except Exception as exc:
+        logger.error("Reindex failed: %s", exc)
+        raise HTTPException(status_code=500, detail=f"Reindex failed: {exc}") from exc
+
+    if new_chunks:
+        message = f"Reindex complete: {new_chunks} chunk(s) indexed."
+    else:
+        message = "Reindex complete: no documents found."
+    logger.info(message)
+    return ReindexResponse(new_chunks=new_chunks, message=message)
 
 
 @app.post("/chat", response_model=ChatResponse)

@@ -68,6 +68,23 @@
     #health-dot.fail { background: var(--danger); }
     #health-label { font-size: .75rem; color: var(--muted); }
 
+    /* Refresh button */
+    #refresh-btn {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--muted);
+      padding: 6px 12px;
+      font-size: .78rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all .15s;
+      white-space: nowrap;
+      margin-left: 12px;
+    }
+    #refresh-btn:hover:not(:disabled) { border-color: var(--accent2); color: var(--accent2); }
+    #refresh-btn:disabled { opacity: .5; cursor: not-allowed; }
+
     /* ── Chat area ── */
     #chat {
       flex: 1;
@@ -280,6 +297,7 @@
   </div>
   <div id="health-dot" title="LLM server status"></div>
   <span id="health-label">checking…</span>
+  <button id="refresh-btn" title="Re-index documents from the docs directory">🔄 Refresh Docs</button>
 </header>
 
 <div id="chat" role="log" aria-live="polite"></div>
@@ -303,6 +321,7 @@
   const sendBtn  = document.getElementById('send-btn');
   const healthDot   = document.getElementById('health-dot');
   const healthLabel = document.getElementById('health-label');
+  const refreshBtn  = document.getElementById('refresh-btn');
 
   // ── Health check ──────────────────────────────────────────────────────────
   async function checkHealth() {
@@ -323,6 +342,32 @@
   }
   checkHealth();
   setInterval(checkHealth, 30_000);
+
+  // ── Refresh / re-index documents ──────────────────────────────────────────
+  async function reindexDocs() {
+    refreshBtn.disabled = true;
+    refreshBtn.textContent = '⏳ Indexing…';
+    try {
+      const res = await fetch('/reindex', { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok) {
+        appendError(`Reindex failed: ${data.detail || res.statusText}`);
+      } else {
+        appendBot({
+          answer: `✅ **${data.message}**`,
+          citations: [],
+          is_triage: false,
+          chunk_ids: [],
+        }, '');
+      }
+    } catch (err) {
+      appendError(`Reindex error: ${err.message}`);
+    } finally {
+      refreshBtn.disabled = false;
+      refreshBtn.textContent = '🔄 Refresh Docs';
+    }
+  }
+  refreshBtn.addEventListener('click', reindexDocs);
 
   // ── Auto-resize textarea ──────────────────────────────────────────────────
   input.addEventListener('input', () => {
