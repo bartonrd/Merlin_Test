@@ -35,6 +35,12 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(mess
 logger = logging.getLogger(__name__)
 
 
+def _abs(rel: str) -> Path:
+    """Return *rel* as an absolute path, anchored at the project root for relative paths."""
+    p = Path(rel)
+    return p if p.is_absolute() else _project_root / p
+
+
 def _audit(record: Dict[str, Any]) -> None:
     """Append a JSON-lines audit record."""
     try:
@@ -53,7 +59,7 @@ def _audit(record: Dict[str, Any]) -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI):  # type: ignore[type-arg]
     """Run document ingestion before the server starts accepting requests."""
-    docs_dir = Path(settings.docs_dir)
+    docs_dir = _abs(settings.docs_dir)
     if docs_dir.exists():
         logger.info("Auto-ingesting documents from %s …", docs_dir)
         try:
@@ -218,11 +224,11 @@ def reindex() -> ReindexResponse:
     Clears the existing index and rebuilds it from scratch so that
     updated or deleted documents are reflected immediately.
     """
-    docs_dir = Path(settings.docs_dir)
+    docs_dir = _abs(settings.docs_dir)
     if not docs_dir.exists():
         raise HTTPException(
             status_code=404,
-            detail=f"Documents directory not found: {settings.docs_dir}",
+            detail=f"Documents directory not found: {docs_dir}",
         )
     try:
         new_chunks = ingest_directory(
@@ -240,7 +246,7 @@ def reindex() -> ReindexResponse:
     if new_chunks:
         message = f"Reindex complete: {new_chunks} chunk(s) indexed."
     else:
-        message = "Reindex complete: no documents found."
+        message = f"Reindex complete: no documents found in {docs_dir}."
     logger.info(message)
     return ReindexResponse(new_chunks=new_chunks, message=message)
 

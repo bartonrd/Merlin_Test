@@ -1,8 +1,32 @@
 """Tests for the POST /reindex endpoint."""
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 from fastapi.testclient import TestClient
+
+
+# ---------------------------------------------------------------------------
+# _abs path-resolution helper
+# ---------------------------------------------------------------------------
+
+
+def test_abs_resolves_relative_to_project_root():
+    """A relative path is anchored at the project root, not the CWD."""
+    from app.main import _abs, _project_root
+
+    result = _abs("./docs")
+    assert result.is_absolute()
+    assert result == _project_root / "docs"
+
+
+def test_abs_preserves_absolute_path():
+    """An absolute path is returned unchanged."""
+    from app.main import _abs
+
+    # Use this test file's resolved path – guaranteed to be absolute on all platforms
+    abs_path = str(Path(__file__).resolve())
+    assert _abs(abs_path) == Path(abs_path)
 
 
 # ---------------------------------------------------------------------------
@@ -48,6 +72,34 @@ def test_reindex_no_documents_found():
     data = response.json()
     assert data["new_chunks"] == 0
     assert "no documents" in data["message"].lower()
+
+
+def test_reindex_no_documents_message_includes_path():
+    """The 'no documents found' message includes the directory that was scanned."""
+    with (
+        patch("app.main.ingest_directory", return_value=0),
+        patch("app.main.settings") as mock_settings,
+        patch("app.main.Path") as mock_path_cls,
+    ):
+        mock_settings.docs_dir = "./docs"
+        mock_settings.db_path = ":memory:"
+        mock_settings.faiss_path = "/tmp/test.faiss"
+        mock_settings.faiss_map_path = "/tmp/test.pkl"
+
+        mock_path = mock_path_cls.return_value
+        mock_path.exists.return_value = True
+        docs_path = str(Path(__file__).resolve().parent / "docs")
+        mock_path.__str__ = lambda self: docs_path
+
+        from app.main import app
+
+        client = TestClient(app)
+        response = client.post("/reindex")
+
+    assert response.status_code == 200
+    message = response.json()["message"].lower()
+    assert "no documents" in message
+    assert docs_path in response.json()["message"]
 
 
 def test_reindex_calls_ingest_with_clear():
