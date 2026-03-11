@@ -129,6 +129,23 @@ class ReindexResponse(BaseModel):
     message: str
 
 
+class ActionOutputVariable(BaseModel):
+    variable_name: str
+    variable_value: str
+    variable_description: str
+
+
+class GetActionOutputValueRequest(BaseModel):
+    action_payload_output: List[ActionOutputVariable]
+    output_variable_name: str
+
+
+class GetActionOutputValueResponse(BaseModel):
+    variable_name: str
+    variable_value: str
+    variable_description: str
+
+
 class OpenAIChatResponse(BaseModel):
     id: str = "chatcmpl-merlin"
     object: str = "chat.completion"
@@ -249,6 +266,32 @@ def reindex() -> ReindexResponse:
         message = f"Reindex complete: no documents found in {docs_dir}."
     logger.info(message)
     return ReindexResponse(new_chunks=new_chunks, message=message)
+
+
+@app.post("/get_action_output_value", response_model=GetActionOutputValueResponse)
+def get_action_output_value(
+    request: GetActionOutputValueRequest,
+) -> GetActionOutputValueResponse:
+    """Get Action Output Value node.
+
+    Searches ``action_payload_output`` for a variable whose ``variable_name``
+    matches ``output_variable_name`` (case-sensitive).  Returns the matched
+    variable's name, value, and description.  If no match is found every field
+    is returned as ``"N/A"``.
+    """
+    _na = "N/A"
+    for variable in request.action_payload_output:
+        if variable.variable_name == request.output_variable_name:
+            return GetActionOutputValueResponse(
+                variable_name=variable.variable_name,
+                variable_value=variable.variable_value,
+                variable_description=variable.variable_description,
+            )
+    return GetActionOutputValueResponse(
+        variable_name=_na,
+        variable_value=_na,
+        variable_description=_na,
+    )
 
 
 @app.post("/chat", response_model=ChatResponse)
