@@ -49,6 +49,28 @@ CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(
 """
 
 
+def _clear_db_contents(db_path: str) -> None:
+    """Clear all ingested data from an existing DB without deleting the file.
+
+    Deleting the file with ``Path.unlink()`` raises ``WinError 32`` on Windows
+    when any process (e.g. the running FastAPI server) still holds the file
+    open.  Using SQL DELETE keeps the file intact while producing the same
+    empty-slate result.
+    """
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.execute("DELETE FROM chunks")
+        # Rebuild the FTS5 index so it stays in sync with the now-empty content table.
+        try:
+            conn.execute("INSERT INTO chunks_fts(chunks_fts) VALUES('rebuild')")
+        except sqlite3.OperationalError:
+            pass  # FTS table may not exist yet in a brand-new DB
+        conn.commit()
+    finally:
+        conn.close()
+    print(f"[ingest] Cleared existing DB: {db_path}")
+
+
 def init_db(db_path: str) -> sqlite3.Connection:
     """Create SQLite DB with FTS5 and chunks tables."""
     Path(db_path).parent.mkdir(parents=True, exist_ok=True)
@@ -166,7 +188,7 @@ def ingest_directory(
         db_path:        SQLite DB path.
         faiss_path:     FAISS index path.
         faiss_map_path: FAISS map pickle path.
-        clear:          If True, drop the existing DB before ingesting.
+        clear:          If True, clear all existing data from the DB before ingesting.
         skip_known:     If True (default), skip files whose doc_id is already
                         in the DB so repeated startups don't create duplicates.
 
@@ -179,8 +201,7 @@ def ingest_directory(
         return 0
 
     if clear and Path(db_path).exists():
-        Path(db_path).unlink()
-        print(f"[ingest] Cleared existing DB: {db_path}")
+        _clear_db_contents(db_path)
 
     conn = init_db(db_path)
     known_ids = get_known_doc_ids(conn) if skip_known else set()
@@ -232,7 +253,7 @@ def main() -> None:
     parser.add_argument(
         "--clear",
         action="store_true",
-        help="Drop and recreate the DB before ingesting",
+        help="Clear all data from the DB before ingesting",
     )
     args = parser.parse_args()
 
