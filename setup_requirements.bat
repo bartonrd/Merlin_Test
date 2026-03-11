@@ -106,7 +106,25 @@ if not exist ".env" (
 )
 
 :: ------------------------------------------------------------------
-:: 6. Done – print next steps
+:: 6. Pre-download embedding model into the local cache
+::    This must happen while internet is available so the server can
+::    run fully offline afterwards.
+:: ------------------------------------------------------------------
+echo.
+echo Pre-downloading embedding model into local cache (internet required) ...
+python app\download_model.py
+if errorlevel 1 (
+    echo.
+    echo WARNING: Embedding model download failed.
+    echo          Please check your internet connection and re-run this setup
+    echo          before running the server offline.
+    echo.
+) else (
+    echo Embedding model cached successfully.
+)
+
+:: ------------------------------------------------------------------
+:: 7. Done – print next steps
 :: ------------------------------------------------------------------
 echo.
 echo ==========================================================

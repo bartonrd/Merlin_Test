@@ -19,7 +19,7 @@ class Settings(BaseSettings):
     # Embedding settings
     embed_model: str = "all-MiniLM-L6-v2"
     embed_device: str = "cpu"
-    embed_local_files_only: bool = False
+    embed_local_files_only: bool = True
 
     # Retrieval settings
     top_k_bm25: int = 10

@@ -89,7 +89,24 @@ if [ ! -f ".env" ] && [ -f ".env.example" ]; then
 fi
 
 # ------------------------------------------------------------------
-# 6. Done – print next steps
+# 6. Pre-download embedding model into the local cache
+#    This must happen while internet is available so the server can
+#    run fully offline afterwards.
+# ------------------------------------------------------------------
+echo ""
+echo "Pre-downloading embedding model into local cache (internet required) ..."
+if python app/download_model.py; then
+    echo "Embedding model cached successfully."
+else
+    echo ""
+    echo "WARNING: Embedding model download failed."
+    echo "         Please check your internet connection and re-run this setup"
+    echo "         before running the server offline."
+    echo ""
+fi
+
+# ------------------------------------------------------------------
+# 7. Done – print next steps
 # ------------------------------------------------------------------
 echo ""
 echo "=========================================================="

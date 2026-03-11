@@ -7,7 +7,8 @@
 ::   3. Install / upgrade Python dependencies from requirements.txt
 ::   4. Install llama-cpp-python (required for LLM_MODE=local)
 ::   5. Create .env from .env.example (if .env is missing)
-::   6. Start the Merlin server
+::   6. Pre-download the embedding model into the local cache
+::   7. Start the Merlin server
 ::
 :: Usage:
 ::   start.bat
@@ -117,7 +118,22 @@ if not exist ".env" (
 )
 
 :: ------------------------------------------------------------------
-:: 6. Launch the server
+:: 6. Pre-download embedding model into the local cache
+::    (no-op if already cached; required for fully offline operation)
+:: ------------------------------------------------------------------
+echo.
+echo Checking embedding model cache ...
+python app\download_model.py
+if errorlevel 1 (
+    echo.
+    echo WARNING: Embedding model could not be loaded or downloaded.
+    echo          If you have no internet connection, ensure the model was
+    echo          downloaded during setup ^(run setup_requirements.bat^).
+    echo.
+)
+
+:: ------------------------------------------------------------------
+:: 7. Launch the server
 :: ------------------------------------------------------------------
 echo.
 echo ==========================================================
