@@ -374,12 +374,19 @@ if _static_dir.exists():
     # latest version after a server restart (prevents stale JS from being used).
     _index_html = _static_dir / "index.html"
 
-    @app.get("/", include_in_schema=False)
-    def serve_index() -> FileResponse:
+    def _index_response() -> FileResponse:
         return FileResponse(
             str(_index_html),
             headers={"Cache-Control": "no-store"},
         )
+
+    @app.get("/", include_in_schema=False)
+    def serve_index() -> FileResponse:
+        return _index_response()
+
+    @app.get("/index.html", include_in_schema=False)
+    def serve_index_html() -> FileResponse:
+        return _index_response()
 
     app.mount("/", StaticFiles(directory=str(_static_dir), html=True), name="static")
 
