@@ -9,7 +9,7 @@ import hashlib
 import pickle
 import sqlite3
 from pathlib import Path
-from typing import List, Set, Union
+from typing import Any, Dict, List, Set, Union
 
 import faiss
 import numpy as np
@@ -180,7 +180,7 @@ def ingest_directory(
     faiss_map_path: str,
     clear: bool = False,
     skip_known: bool = True,
-) -> int:
+) -> Dict[str, Any]:
     """Ingest all supported documents in *input_dir* into the index.
 
     Args:
@@ -193,12 +193,15 @@ def ingest_directory(
                         in the DB so repeated startups don't create duplicates.
 
     Returns:
-        Number of new chunks inserted during this run.
+        A dict with keys:
+            ``total`` – number of new chunks inserted during this run.
+            ``files`` – list of ``{"name": str, "chunks": int}`` dicts, one
+                        per successfully processed file.
     """
     input_dir = Path(input_dir)
     if not input_dir.exists():
         print(f"[ingest] Input directory not found: {input_dir}")
-        return 0
+        return {"total": 0, "files": []}
 
     if clear and Path(db_path).exists():
         _clear_db_contents(db_path)
@@ -210,9 +213,10 @@ def ingest_directory(
     if not files:
         print(f"[ingest] No supported documents found in {input_dir}")
         conn.close()
-        return 0
+        return {"total": 0, "files": []}
 
     new_chunks: List[Chunk] = []
+    file_details: List[Dict[str, Any]] = []
     for file_path in sorted(files):
         doc_id = _doc_id(file_path)
         if doc_id in known_ids:
@@ -222,6 +226,7 @@ def ingest_directory(
             chunks = process_file(file_path)
             insert_chunks(conn, chunks)
             new_chunks.extend(chunks)
+            file_details.append({"name": file_path.name, "chunks": len(chunks)})
             print(f"[ingest]   {file_path.name}: {len(chunks)} chunks")
         except Exception as exc:
             print(f"[ingest]   ERROR processing {file_path.name}: {exc}")
@@ -235,7 +240,7 @@ def ingest_directory(
         print("[ingest] No new documents – indexes unchanged.")
 
     conn.close()
-    return len(new_chunks)
+    return {"total": len(new_chunks), "files": file_details}
 
 
 # ---------------------------------------------------------------------------

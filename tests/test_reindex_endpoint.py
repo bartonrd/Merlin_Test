@@ -37,7 +37,7 @@ def test_abs_preserves_absolute_path():
 def test_reindex_returns_chunk_count():
     """A successful reindex returns the number of new chunks."""
     with (
-        patch("app.main.ingest_directory", return_value=42) as mock_ingest,
+        patch("app.main.ingest_directory", return_value={"total": 42, "files": [{"name": "a.txt", "chunks": 42}]}) as mock_ingest,
         patch("app.main.Path") as mock_path_cls,
     ):
         mock_path = mock_path_cls.return_value
@@ -52,12 +52,13 @@ def test_reindex_returns_chunk_count():
     data = response.json()
     assert data["new_chunks"] == 42
     assert "42" in data["message"]
+    assert data["files"] == [{"name": "a.txt", "chunks": 42}]
 
 
 def test_reindex_no_documents_found():
     """When no documents exist, new_chunks is 0 and the message reflects that."""
     with (
-        patch("app.main.ingest_directory", return_value=0),
+        patch("app.main.ingest_directory", return_value={"total": 0, "files": []}),
         patch("app.main.Path") as mock_path_cls,
     ):
         mock_path = mock_path_cls.return_value
@@ -72,12 +73,13 @@ def test_reindex_no_documents_found():
     data = response.json()
     assert data["new_chunks"] == 0
     assert "no documents" in data["message"].lower()
+    assert data["files"] == []
 
 
 def test_reindex_no_documents_message_includes_path():
     """The 'no documents found' message includes the directory that was scanned."""
     with (
-        patch("app.main.ingest_directory", return_value=0),
+        patch("app.main.ingest_directory", return_value={"total": 0, "files": []}),
         patch("app.main.settings") as mock_settings,
         patch("app.main.Path") as mock_path_cls,
     ):
@@ -105,7 +107,7 @@ def test_reindex_no_documents_message_includes_path():
 def test_reindex_calls_ingest_with_clear():
     """The /reindex endpoint always passes clear=True and skip_known=False."""
     with (
-        patch("app.main.ingest_directory", return_value=5) as mock_ingest,
+        patch("app.main.ingest_directory", return_value={"total": 5, "files": [{"name": "x.pdf", "chunks": 5}]}) as mock_ingest,
         patch("app.main.settings") as mock_settings,
         patch("app.main.Path") as mock_path_cls,
     ):
@@ -126,6 +128,32 @@ def test_reindex_calls_ingest_with_clear():
     _, kwargs = mock_ingest.call_args
     assert kwargs["clear"] is True
     assert kwargs["skip_known"] is False
+
+
+def test_reindex_response_includes_file_details():
+    """The /reindex response includes a per-file breakdown of indexed chunks."""
+    file_data = [
+        {"name": "runbook_a.pdf", "chunks": 10},
+        {"name": "notes.txt", "chunks": 3},
+    ]
+    with (
+        patch("app.main.ingest_directory", return_value={"total": 13, "files": file_data}),
+        patch("app.main.Path") as mock_path_cls,
+    ):
+        mock_path = mock_path_cls.return_value
+        mock_path.exists.return_value = True
+
+        from app.main import app
+
+        client = TestClient(app)
+        response = client.post("/reindex")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["new_chunks"] == 13
+    assert len(data["files"]) == 2
+    assert data["files"][0] == {"name": "runbook_a.pdf", "chunks": 10}
+    assert data["files"][1] == {"name": "notes.txt", "chunks": 3}
 
 
 # ---------------------------------------------------------------------------

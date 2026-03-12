@@ -124,9 +124,15 @@ class GenerateRequest(BaseModel):
     temperature: Optional[float] = None
 
 
+class FileIndexDetail(BaseModel):
+    name: str
+    chunks: int
+
+
 class ReindexResponse(BaseModel):
     new_chunks: int
     message: str
+    files: List[FileIndexDetail] = []
 
 
 class OpenAIChatResponse(BaseModel):
@@ -231,7 +237,7 @@ def reindex() -> ReindexResponse:
             detail=f"Documents directory not found: {docs_dir}",
         )
     try:
-        new_chunks = ingest_directory(
+        result = ingest_directory(
             input_dir=docs_dir,
             db_path=settings.db_path,
             faiss_path=settings.faiss_path,
@@ -243,12 +249,14 @@ def reindex() -> ReindexResponse:
         logger.error("Reindex failed: %s", exc)
         raise HTTPException(status_code=500, detail=f"Reindex failed: {exc}") from exc
 
-    if new_chunks:
-        message = f"Reindex complete: {new_chunks} chunk(s) indexed."
+    total = result["total"]
+    files = [FileIndexDetail(**f) for f in result["files"]]
+    if total:
+        message = f"Reindex complete: {total} chunk(s) indexed."
     else:
         message = f"Reindex complete: no documents found in {docs_dir}."
     logger.info(message)
-    return ReindexResponse(new_chunks=new_chunks, message=message)
+    return ReindexResponse(new_chunks=total, message=message, files=files)
 
 
 @app.post("/chat", response_model=ChatResponse)

@@ -36,5 +36,3 @@ def test_load_txt_via_load_text(tmp_path):
     result = load_text(txt_file)
     assert result == "hello world"
 
-
-

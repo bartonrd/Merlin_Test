@@ -354,8 +354,14 @@
       if (!res.ok) {
         appendError(`Reindex failed: ${data.detail || res.statusText}`);
       } else {
+        const fileList = (data.files || [])
+          .map(f => `- **${f.name}** — ${f.chunks} chunk${f.chunks === 1 ? '' : 's'}`)
+          .join('\n');
+        const answer = fileList
+          ? `✅ **${data.message}**\n\n${fileList}`
+          : `✅ **${data.message}**`;
         appendBot({
-          answer: `✅ **${data.message}**`,
+          answer,
           citations: [],
           is_triage: false,
           chunk_ids: [],
