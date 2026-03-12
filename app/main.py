@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -63,15 +64,16 @@ async def lifespan(app: FastAPI):  # type: ignore[type-arg]
     if docs_dir.exists():
         logger.info("Auto-ingesting documents from %s …", docs_dir)
         try:
-            new_chunks = ingest_directory(
+            result = ingest_directory(
                 input_dir=docs_dir,
                 db_path=settings.db_path,
                 faiss_path=settings.faiss_path,
                 faiss_map_path=settings.faiss_map_path,
                 skip_known=True,
             )
-            if new_chunks:
-                logger.info("Startup ingestion complete: %d new chunk(s) indexed.", new_chunks)
+            total = result["total"]
+            if total:
+                logger.info("Startup ingestion complete: %d new chunk(s) indexed.", total)
             else:
                 logger.info("Startup ingestion: no new documents found.")
         except Exception as exc:
@@ -368,6 +370,17 @@ def openai_chat(request: OpenAIChatRequest) -> Dict[str, Any]:
 
 _static_dir = Path(__file__).parent / "ui" / "static"
 if _static_dir.exists():
+    # Serve index.html with no-cache headers so the browser always fetches the
+    # latest version after a server restart (prevents stale JS from being used).
+    _index_html = _static_dir / "index.html"
+
+    @app.get("/", include_in_schema=False)
+    def serve_index() -> FileResponse:
+        return FileResponse(
+            str(_index_html),
+            headers={"Cache-Control": "no-store"},
+        )
+
     app.mount("/", StaticFiles(directory=str(_static_dir), html=True), name="static")
 
 

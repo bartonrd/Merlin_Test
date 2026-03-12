@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Cache-Control" content="no-store" />
   <title>Merlin – Power System Apps Agent</title>
   <link rel="icon" type="image/png" href="/icon_merlin.png" />
   <style>
@@ -355,7 +356,7 @@
         appendError(`Reindex failed: ${data.detail || res.statusText}`);
       } else {
         const fileList = (data.files || [])
-          .map(f => `- **${f.name}** — ${f.chunks} chunk${f.chunks === 1 ? '' : 's'}`)
+          .map(f => `- **${escapeHtml(f.name)}** — ${f.chunks} chunk${f.chunks === 1 ? '' : 's'}`)
           .join('\n');
         const answer = fileList
           ? `✅ **${data.message}**\n\n${fileList}`
