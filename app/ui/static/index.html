@@ -355,18 +355,7 @@
       if (!res.ok) {
         appendError(`Reindex failed: ${data.detail || res.statusText}`);
       } else {
-        const fileList = (data.files || [])
-          .map(f => `- **${escapeHtml(f.name)}** — ${f.chunks} chunk${f.chunks === 1 ? '' : 's'}`)
-          .join('\n');
-        const answer = fileList
-          ? `✅ **${data.message}**\n\n${fileList}`
-          : `✅ **${data.message}**`;
-        appendBot({
-          answer,
-          citations: [],
-          is_triage: false,
-          chunk_ids: [],
-        }, '');
+        appendReindexResult(data);
       }
     } catch (err) {
       appendError(`Reindex error: ${err.message}`);
@@ -509,6 +498,27 @@
     msg.innerHTML = `
       <div class="avatar" style="background:#ef4444">!</div>
       <div class="bubble" style="border-color:#ef4444;color:#fca5a5">${escapeHtml(text)}</div>
+    `;
+    chat.appendChild(msg);
+    scrollToBottom();
+  }
+
+  // ── Append a reindex-result bubble ────────────────────────────────────────
+  function appendReindexResult(data) {
+    const files = data.files || [];
+    const listHtml = files.length
+      ? '<ul>' + files.map(f =>
+          `<li><strong>${escapeHtml(f.name)}</strong> \u2014 ${f.chunks} chunk${f.chunks === 1 ? '' : 's'}</li>`
+        ).join('') + '</ul>'
+      : '';
+    const msg = document.createElement('div');
+    msg.className = 'message bot';
+    msg.innerHTML = `
+      <div class="avatar">M</div>
+      <div class="bubble">
+        <p>&#x2705; Reindex complete: <strong>${data.new_chunks}</strong> chunk(s) indexed.</p>
+        ${listHtml}
+      </div>
     `;
     chat.appendChild(msg);
     scrollToBottom();
