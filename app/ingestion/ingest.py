@@ -19,7 +19,7 @@ from app.ingestion.embed import embed_texts
 from app.ingestion.loaders import load_text
 from config import settings
 
-SUPPORTED_EXTENSIONS = {".txt", ".md", ".pdf", ".docx"}
+SUPPORTED_EXTENSIONS = {".txt", ".md", ".pdf", ".docx", ".csv"}
 
 # ---------------------------------------------------------------------------
 # Database helpers

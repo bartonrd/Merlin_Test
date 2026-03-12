@@ -10,6 +10,7 @@ def load_text(path: Path) -> str:
         ".md": load_md,
         ".pdf": load_pdf,
         ".docx": load_docx,
+        ".csv": load_csv,
     }
     loader = dispatch.get(ext)
     if loader is None:
@@ -47,3 +48,15 @@ def load_docx(path: Path) -> str:
     doc = Document(str(path))
     paragraphs = [para.text for para in doc.paragraphs if para.text.strip()]
     return "\n\n".join(paragraphs)
+
+
+def load_csv(path: Path) -> str:
+    """Load a CSV file and convert each row to a readable text line."""
+    import csv
+
+    rows: list[str] = []
+    with path.open(encoding="utf-8", errors="replace", newline="") as fh:
+        reader = csv.reader(fh)
+        for row in reader:
+            rows.append(", ".join(row))
+    return "\n".join(rows)
