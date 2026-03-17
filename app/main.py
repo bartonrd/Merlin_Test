@@ -28,6 +28,7 @@ from app.llm.prompting import (
     FWF266_SYSTEM_PROMPT,
     build_chat_messages,
     format_citation,
+    format_fwf266_action_payload_block,
     format_fwf266_computed,
 )
 from app.reasoning.fwf266_resolver import is_fwf266
@@ -185,6 +186,7 @@ def _handle_query(query: str, expand: bool = False) -> ChatResponse:
     # ------------------------------------------------------------------
     computed_block: Optional[str] = None
     system_prompt: Optional[str] = None
+    resolution = None
 
     if is_fwf266(query):
         global_csv_path = str(_abs(settings.docs_dir) / "configuration_files" / "global.csv")
@@ -217,6 +219,17 @@ def _handle_query(query: str, expand: bool = False) -> ChatResponse:
         )
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+    # Always append the action_payload code block when a FWF266 resolution was
+    # computed, guaranteeing the chat response contains both the text explanation
+    # and the machine-readable payload regardless of LLM output variability.
+    if resolution is not None:
+        answer += format_fwf266_action_payload_block(
+            global_csv_line_text=resolution.global_csv_line_text,
+            global_csv_line_number=resolution.global_csv_line_number,
+            confidence=resolution.confidence,
+            notes=resolution.notes,
+        )
 
     citations = [format_citation(r) for r in results]
     chunk_ids = [r.chunk_id for r in results]
@@ -319,16 +332,17 @@ def generate(request: GenerateRequest) -> ChatResponse:
     # FWF266 programmatic resolver (same logic as _handle_query)
     gen_computed_block: Optional[str] = None
     effective_system_prompt: Optional[str] = request.system_prompt
+    gen_resolution = None
 
     if is_fwf266(request.prompt):
         global_csv_path = str(_abs(settings.docs_dir) / "configuration_files" / "global.csv")
-        resolution = resolve_fwf266(request.prompt, global_csv_path)
-        if resolution is not None:
+        gen_resolution = resolve_fwf266(request.prompt, global_csv_path)
+        if gen_resolution is not None:
             gen_computed_block = format_fwf266_computed(
-                global_csv_line_text=resolution.global_csv_line_text,
-                global_csv_line_number=resolution.global_csv_line_number,
-                confidence=resolution.confidence,
-                notes=resolution.notes,
+                global_csv_line_text=gen_resolution.global_csv_line_text,
+                global_csv_line_number=gen_resolution.global_csv_line_number,
+                confidence=gen_resolution.confidence,
+                notes=gen_resolution.notes,
             )
             if effective_system_prompt is None:
                 effective_system_prompt = FWF266_SYSTEM_PROMPT
@@ -353,6 +367,15 @@ def generate(request: GenerateRequest) -> ChatResponse:
         )
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+    # Always append the action_payload code block when a FWF266 resolution was computed.
+    if gen_resolution is not None:
+        answer += format_fwf266_action_payload_block(
+            global_csv_line_text=gen_resolution.global_csv_line_text,
+            global_csv_line_number=gen_resolution.global_csv_line_number,
+            confidence=gen_resolution.confidence,
+            notes=gen_resolution.notes,
+        )
 
     citations = [format_citation(r) for r in results]
     chunk_ids = [r.chunk_id for r in results]

@@ -26,7 +26,7 @@ class FWF266Resolution:
     """Result of a successful FWF266 resolution."""
 
     global_csv_line_text: str
-    global_csv_line_number: int  # 0-based insertion index = reference_row_index + 1
+    global_csv_line_number: int  # 0-based line index in global.csv where the new row is inserted (= reference_row_index + 1)
     confidence: float
     notes: str
 

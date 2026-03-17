@@ -1,5 +1,6 @@
 """Tests for the FWF266 programmatic resolver."""
 import csv
+import json
 import os
 import textwrap
 
@@ -12,6 +13,7 @@ from app.reasoning.fwf266_resolver import (
     is_fwf266,
     resolve,
 )
+from app.llm.prompting import format_fwf266_action_payload_block
 
 
 # ---------------------------------------------------------------------------
@@ -221,3 +223,77 @@ def test_resolve_real_global_csv_fwf266_example():
         f"Expected line_number=767, got: {result.global_csv_line_number}"
     )
     assert 0.0 <= result.confidence <= 1.0
+
+
+# ---------------------------------------------------------------------------
+# format_fwf266_action_payload_block – combined response tests
+# ---------------------------------------------------------------------------
+
+
+def test_action_payload_block_contains_json_code_fence():
+    """The action payload block must contain a JSON code fence."""
+    block = format_fwf266_action_payload_block(
+        global_csv_line_text="Conductor_Model,1,COND_Xa,OH_TEST_N_2.9KV,TRUE",
+        global_csv_line_number=42,
+        confidence=0.9,
+        notes="test note",
+    )
+    assert "```json" in block
+    assert "```" in block
+
+
+def test_action_payload_block_contains_required_fields():
+    """The action payload block must include all required action_payload fields."""
+    line_text = "Conductor_Model,1,COND_Xa,OH_TEST_N_2.9KV,TRUE"
+    line_number = 42
+    block = format_fwf266_action_payload_block(
+        global_csv_line_text=line_text,
+        global_csv_line_number=line_number,
+        confidence=0.9,
+        notes="test note",
+    )
+    # Extract JSON from code block
+    json_start = block.index("```json") + len("```json")
+    json_end = block.index("```", json_start)
+    payload = json.loads(block[json_start:json_end].strip())
+
+    assert len(payload["actions"]) == 1
+    action = payload["actions"][0]
+    assert action["action"] == "propose_global_csv_insert"
+    assert action["global_csv_line_text"] == line_text
+    assert action["global_csv_line_number"] == line_number
+    assert payload["confidence"] == 0.9
+    assert payload["notes"] == "test note"
+
+
+def test_action_payload_block_has_section_header():
+    """The block must have an 'Action Payload' heading so it stands out in chat."""
+    block = format_fwf266_action_payload_block(
+        global_csv_line_text="Conductor_Model,1,COND_Xa,OH_TEST_N_2.9KV,TRUE",
+        global_csv_line_number=1,
+        confidence=0.8,
+        notes="note",
+    )
+    assert "Action Payload" in block
+
+
+def test_combined_response_contains_both_explanation_and_payload(synthetic_global_csv):
+    """Simulate the _handle_query pattern: LLM text + appended payload block always present."""
+    log = _make_error_log("OH_TEST_N_2.9KV")
+    result = resolve(log, synthetic_global_csv)
+    assert result is not None
+
+    # Simulate what _handle_query does: LLM answer + appended block
+    llm_text = "The missing Line Conductor Model OH_TEST_N_2.9KV was resolved using the closest voltage reference."
+    payload_block = format_fwf266_action_payload_block(
+        global_csv_line_text=result.global_csv_line_text,
+        global_csv_line_number=result.global_csv_line_number,
+        confidence=result.confidence,
+        notes=result.notes,
+    )
+    full_response = llm_text + payload_block
+
+    # Both the natural-language explanation and the action_payload must be present.
+    assert "Line Conductor Model" in full_response        # text explanation
+    assert "propose_global_csv_insert" in full_response  # action payload
+    assert "```json" in full_response                    # valid JSON code block

@@ -34,12 +34,14 @@ You have been provided with a <computed> block containing the exact, programmati
 derived resolution for an FWF266 fatal workflow failure.
 
 RULES:
-1. Report the values from the <computed> block VERBATIM – do not alter them.
-2. Present the action_payload JSON exactly as shown in the <computed> block.
-3. Briefly explain the resolution (which reference row was used, why).
-4. Do not invent or modify any CSV field values.
-5. If the <computed> block contains "no_action: true", report that no action is
-   required and explain the reason given.
+1. Write a concise text explanation of the resolution:
+   - State the error (missing Line Conductor Model) and affected station/device.
+   - Identify the reference row used (Conductor_ID, Conductor_Group, voltage).
+   - Explain WHY that reference was chosen (closest voltage match).
+   - State what the proposed new row changes (Conductor_ID suffix 'a', updated voltage).
+2. Do NOT reproduce the action_payload JSON yourself – it will be appended automatically.
+3. Do not invent or modify any CSV field values.
+4. If the <computed> block contains "no_action: true", explain why no action is required.
 """
 
 EXPAND_INSTRUCTION = (
@@ -110,6 +112,34 @@ def format_fwf266_computed(
         f"action_payload:\n{payload_str}\n"
         "</computed>\n"
     )
+
+
+def format_fwf266_action_payload_block(
+    global_csv_line_text: str,
+    global_csv_line_number: int,
+    confidence: float,
+    notes: str,
+) -> str:
+    """Return the action_payload as a markdown JSON code block for chat display.
+
+    This is appended programmatically to every FWF266 response so the user
+    always sees both the text explanation and the machine-readable payload.
+    """
+    import json
+
+    action_payload = {
+        "actions": [
+            {
+                "action": "propose_global_csv_insert",
+                "global_csv_line_text": global_csv_line_text,
+                "global_csv_line_number": global_csv_line_number,
+            }
+        ],
+        "confidence": confidence,
+        "notes": notes,
+    }
+    payload_str = json.dumps(action_payload, indent=2)
+    return f"\n\n---\n\n**Action Payload**\n\n```json\n{payload_str}\n```"
 
 
 def build_chat_messages(
