@@ -19,6 +19,35 @@ def test_detect_doc_type_arch():
     assert detect_doc_type("architecture overview", text) == "arch"
 
 
+def test_detect_doc_type_fatal_resolution_path():
+    """Documents under a fatal_resolution/ directory must be classified as runbook."""
+    text = "Some generic content with no runbook keywords."
+    assert detect_doc_type("ReadMe", text, path="/docs/fatal_resolution/FWF266/ReadMe.md") == "runbook"
+
+
+def test_detect_doc_type_runbook_dir_path():
+    """Documents under a runbook/ directory must be classified as runbook."""
+    text = "Some generic content with no runbook keywords."
+    assert detect_doc_type("MM Fatal Resolution", text, path="/docs/runbook/MM Fatal Resolution.docx") == "runbook"
+
+
+def test_detect_doc_type_path_overrides_content():
+    """Path-based classification takes priority over keyword-based content scoring."""
+    # This text alone would score as 'general' (no runbook keywords).
+    text = "Error Code: FWF266. Resolution Strategy: filter, match, propose."
+    assert detect_doc_type("ReadMe", text, path=r"C:\dev\Merlin_Test\docs\fatal_resolution\FWF266\ReadMe.md") == "runbook"
+
+
+def test_chunk_document_fatal_resolution_classified_as_runbook(tmp_path):
+    """chunk_document auto-detects doc_type=runbook for files in fatal_resolution/."""
+    path = str(tmp_path / "fatal_resolution" / "ERR001" / "ReadMe.md")
+    text = "## Summary\nThis document explains error ERR001.\n## Resolution Strategy\nFollow steps 1-3."
+    chunks = chunk_document(text, "err-001", "ReadMe", path)
+    assert all(c.doc_type == "runbook" for c in chunks), (
+        f"Expected all chunks to be 'runbook', got: {[c.doc_type for c in chunks]}"
+    )
+
+
 def test_split_by_size_single_chunk():
     """Short text should not be split."""
     text = "This is a short text."

@@ -18,14 +18,14 @@ def route_and_retrieve(
     Returns (results, is_triage).
 
     - Normal question:  search runbooks + architecture + general docs
-    - Error log/trace:  search incidents + runbooks + architecture (priority on incidents)
+    - Error log/trace:  search incidents + runbooks + architecture + general docs (priority on incidents)
     """
     is_triage = is_error_log(query)
 
     if is_triage:
         sig = parse_log_signature(query)
         search_query = build_search_query(query, sig)
-        doc_type_filter: Optional[List[str]] = ["incident", "runbook", "arch"]
+        doc_type_filter: Optional[List[str]] = ["incident", "runbook", "arch", "general"]
     else:
         search_query = query
         doc_type_filter = ["runbook", "arch", "general"]

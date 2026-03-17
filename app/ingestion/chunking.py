@@ -32,10 +32,26 @@ _ARCH_KEYWORDS = re.compile(
     r"\b(architecture|overview|services?|deployment|infrastructure|platform|stack)\b",
     re.IGNORECASE,
 )
+# Directory names that unambiguously identify a document as a runbook/resolution guide.
+_RUNBOOK_DIRS = {"fatal_resolution", "runbook", "runbooks"}
 
 
-def detect_doc_type(title: str, text: str) -> str:
-    """Heuristic detection of doc type from title and content."""
+def detect_doc_type(title: str, text: str, path: str = "") -> str:
+    """Heuristic detection of doc type from title, path, and content.
+
+    Path-based detection takes highest priority: documents stored inside
+    ``fatal_resolution/``, ``runbook/``, or ``runbooks/`` directories are
+    always classified as ``"runbook"`` regardless of their content, because
+    the directory name is an authoritative signal about the document's purpose.
+    """
+    # Path-based detection (highest priority).
+    if path:
+        # Normalize both Windows and Unix path separators before splitting
+        # so that paths like C:\docs\fatal_resolution\... work on any OS.
+        path_parts = {p.lower() for p in path.replace("\\", "/").split("/")}
+        if path_parts & _RUNBOOK_DIRS:
+            return "runbook"
+
     combined = f"{title}\n{text[:2000]}"
 
     runbook_score = len(_RUNBOOK_KEYWORDS.findall(combined))
@@ -79,7 +95,7 @@ def chunk_document(
 ) -> List[Chunk]:
     """Main chunking function that dispatches to specialised chunkers."""
     if doc_type is None:
-        doc_type = detect_doc_type(title, text)
+        doc_type = detect_doc_type(title, text, path)
 
     if doc_type == "runbook":
         return chunk_runbook(text, doc_id, title, path, max_chunk_size, overlap)
