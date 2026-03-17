@@ -1,4 +1,5 @@
 """BM25 search via SQLite FTS5."""
+import re
 import sqlite3
 from dataclasses import dataclass
 from typing import List, Optional
@@ -17,6 +18,21 @@ class SearchResult:
     text: str
 
 
+def _sanitize_fts_query(query: str) -> str:
+    """Return a safe FTS5 MATCH expression from a freeform query string.
+
+    Extracts only alphanumeric tokens (stripping FTS5 special characters and
+    operator keywords) and wraps each token in double quotes so it is treated
+    as a literal term lookup.  This prevents the silent ``OperationalError``
+    that occurs when the user's query contains FTS5 reserved words (AND, OR,
+    NOT) or special characters (``*``, ``^``, quotes, parentheses, etc.).
+    """
+    tokens = re.findall(r"\w+", query)
+    if not tokens:
+        return '""'
+    return " ".join(f'"{t}"' for t in tokens)
+
+
 def bm25_search(
     query: str,
     db_path: str,
@@ -31,6 +47,7 @@ def bm25_search(
     if not query.strip():
         return []
 
+    safe_query = _sanitize_fts_query(query)
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
     try:
@@ -54,7 +71,7 @@ def bm25_search(
                 ORDER BY score DESC
                 LIMIT ?
             """
-            params: List = [query, *doc_type_filter, top_k]
+            params: List = [safe_query, *doc_type_filter, top_k]
         else:
             sql = """
                 SELECT
@@ -73,7 +90,7 @@ def bm25_search(
                 ORDER BY score DESC
                 LIMIT ?
             """
-            params = [query, top_k]
+            params = [safe_query, top_k]
 
         rows = conn.execute(sql, params).fetchall()
         return [

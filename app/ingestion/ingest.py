@@ -173,6 +173,29 @@ def get_known_doc_ids(conn: sqlite3.Connection) -> Set[str]:
     return {row[0] for row in cur.fetchall()}
 
 
+def _faiss_missing_ids(faiss_map_path: str, conn: sqlite3.Connection) -> bool:
+    """Return True if any chunk in the DB is absent from the FAISS map.
+
+    This detects the common failure mode where the server is interrupted
+    (crash, kill, Ctrl-C) between the DB ``INSERT`` and the FAISS index write.
+    The chunks are committed to SQLite first, so they appear "already indexed"
+    on the next startup and are skipped – but they are never added to the FAISS
+    (or FTS5) index, making them permanently invisible to retrieval.
+    """
+    if not Path(faiss_map_path).exists():
+        return True
+    try:
+        with open(faiss_map_path, "rb") as fh:
+            faiss_map: Dict[int, int] = pickle.load(fh)
+    except Exception:
+        return True
+    # faiss_map is {faiss_idx: db_id}; collect all db_ids represented in FAISS
+    mapped_db_ids = set(faiss_map.values())
+    cur = conn.execute("SELECT id FROM chunks")
+    db_ids = {row[0] for row in cur.fetchall()}
+    return bool(db_ids - mapped_db_ids)
+
+
 def ingest_directory(
     input_dir: Union[str, Path],
     db_path: str,
@@ -210,32 +233,37 @@ def ingest_directory(
     known_ids = get_known_doc_ids(conn) if skip_known else set()
 
     files = [f for f in input_dir.rglob("*") if f.suffix.lower() in SUPPORTED_EXTENSIONS]
-    if not files:
-        print(f"[ingest] No supported documents found in {input_dir}")
-        conn.close()
-        return {"total": 0, "files": []}
 
     new_chunks: List[Chunk] = []
     file_details: List[Dict[str, Any]] = []
-    for file_path in sorted(files):
-        doc_id = _doc_id(file_path)
-        if doc_id in known_ids:
-            print(f"[ingest] Skipping already-indexed: {file_path.name}")
-            continue
-        try:
-            chunks = process_file(file_path)
-            insert_chunks(conn, chunks)
-            new_chunks.extend(chunks)
-            file_details.append({"name": file_path.name, "chunks": len(chunks)})
-            print(f"[ingest]   {file_path.name}: {len(chunks)} chunks")
-        except Exception as exc:
-            print(f"[ingest]   ERROR processing {file_path.name}: {exc}")
+
+    if not files:
+        print(f"[ingest] No supported documents found in {input_dir}")
+    else:
+        for file_path in sorted(files):
+            doc_id = _doc_id(file_path)
+            if doc_id in known_ids:
+                print(f"[ingest] Skipping already-indexed: {file_path.name}")
+                continue
+            try:
+                chunks = process_file(file_path)
+                insert_chunks(conn, chunks)
+                new_chunks.extend(chunks)
+                file_details.append({"name": file_path.name, "chunks": len(chunks)})
+                print(f"[ingest]   {file_path.name}: {len(chunks)} chunks")
+            except Exception as exc:
+                print(f"[ingest]   ERROR processing {file_path.name}: {exc}")
 
     if new_chunks:
         print(f"[ingest] {len(new_chunks)} new chunk(s) inserted – rebuilding indexes …")
         build_fts_index(conn)
         build_faiss_index(conn, faiss_path, faiss_map_path)
         print("[ingest] Ingestion complete.")
+    elif _faiss_missing_ids(faiss_map_path, conn):
+        print("[ingest] FAISS index is out of sync with DB – rebuilding indexes …")
+        build_fts_index(conn)
+        build_faiss_index(conn, faiss_path, faiss_map_path)
+        print("[ingest] Index rebuild complete.")
     else:
         print("[ingest] No new documents – indexes unchanged.")
 
