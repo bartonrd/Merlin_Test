@@ -29,6 +29,19 @@ RULES (SAME AS ABOVE, PLUS):
 9. Never guess at infrastructure specifics not found in documents.
 """
 
+FWF266_SYSTEM_PROMPT = """You are Merlin, a power-system configuration assistant.
+You have been provided with a <computed> block containing the exact, programmatically
+derived resolution for an FWF266 fatal workflow failure.
+
+RULES:
+1. Report the values from the <computed> block VERBATIM – do not alter them.
+2. Present the action_payload JSON exactly as shown in the <computed> block.
+3. Briefly explain the resolution (which reference row was used, why).
+4. Do not invent or modify any CSV field values.
+5. If the <computed> block contains "no_action: true", report that no action is
+   required and explain the reason given.
+"""
+
 EXPAND_INSTRUCTION = (
     "\n\nThe user has asked you to expand on your previous answer. "
     "Provide more detail, additional context, and deeper explanation."
@@ -63,6 +76,42 @@ def format_context(results: List[SearchResult], max_chars: int = 6000) -> str:
     return "".join(lines)
 
 
+def format_fwf266_computed(
+    global_csv_line_text: str,
+    global_csv_line_number: int,
+    confidence: float,
+    notes: str,
+) -> str:
+    """Format the programmatically computed FWF266 resolution as a <computed> block.
+
+    This block is injected into the user message so the LLM can report the
+    exact values without having to derive them itself.
+    """
+    import json
+
+    action_payload = {
+        "actions": [
+            {
+                "action": "propose_global_csv_insert",
+                "global_csv_line_text": global_csv_line_text,
+                "global_csv_line_number": global_csv_line_number,
+            }
+        ],
+        "confidence": confidence,
+        "notes": notes,
+    }
+    payload_str = json.dumps(action_payload, indent=2)
+
+    return (
+        "<computed>\n"
+        "FWF266 resolution (programmatically computed from global.csv):\n\n"
+        f"global_csv_line_text: {global_csv_line_text!r}\n"
+        f"global_csv_line_number: {global_csv_line_number}\n\n"
+        f"action_payload:\n{payload_str}\n"
+        "</computed>\n"
+    )
+
+
 def build_chat_messages(
     user_query: str,
     context_results: List[SearchResult],
@@ -70,13 +119,17 @@ def build_chat_messages(
     expand: bool = False,
     max_context_chars: int = 6000,
     system_prompt: Optional[str] = None,
+    computed_block: Optional[str] = None,
 ) -> List[Dict[str, str]]:
     """Build the messages list for a chat completion request."""
     if system_prompt is None:
         system_prompt = TRIAGE_SYSTEM_PROMPT if is_triage else SYSTEM_PROMPT
     context_block = format_context(context_results, max_chars=max_context_chars)
 
-    user_content = f"{context_block}\n\n{user_query}"
+    user_content = f"{context_block}\n\n"
+    if computed_block:
+        user_content += computed_block + "\n"
+    user_content += user_query
     if expand:
         user_content += EXPAND_INSTRUCTION
 

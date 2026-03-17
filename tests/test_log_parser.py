@@ -78,3 +78,27 @@ RuntimeError: failed to connect"""
     sig = parse_log_signature(log)
     assert sig.is_log is True
     assert len(sig.stack_trace_lines) > 0
+
+
+def test_merlin_fatal_log_detected_as_error_log():
+    """FWF266-style CSV error logs must be identified as error logs."""
+    log = (
+        "-F-,FWF266,PH382E$4115222E,Line conductor model was not found in global data.,"
+        "Record name: Line Field name: CondModA,Station External Device: PH382E$4115222E,"
+        "OH_653_A_2PH_653_A_N_2.9KV,,,,ALOLA,,PH382E$4115222E,ENG"
+    )
+    assert is_error_log(log) is True
+
+
+def test_merlin_fatal_code_extracted_from_log():
+    """FWF266 code must appear in the extracted error codes."""
+    log = (
+        "-F-,FWF266,PH382E$4115222E,Line conductor model was not found in global data.,"
+        "Record name: Line Field name: CondModA,Station External Device: PH382E$4115222E,"
+        "OH_653_A_2PH_653_A_N_2.9KV,,,,ALOLA,,PH382E$4115222E,ENG"
+    )
+    sig = parse_log_signature(log)
+    assert any("FWF266" in code for code in sig.error_codes), (
+        f"Expected FWF266 in error_codes, got: {sig.error_codes}"
+    )
+

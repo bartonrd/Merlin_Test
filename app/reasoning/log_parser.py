@@ -30,11 +30,17 @@ _ERROR_CODE = re.compile(
     r"\b(E\d{4,}|ORA-\d+|SQLSTATE\[\d+\]|errno\s*\d+|code\s*[:=]\s*\d{3,})\b",
     re.IGNORECASE,
 )
+# Matches Merlin/Nodecraft fatal error codes such as FWF266.
+# Format: a CSV row beginning with "-F-," or "-F-" followed by the code field.
+_MERLIN_FATAL_CODE = re.compile(r"\b([A-Z]{2,}[0-9]{2,})\b")
 _LOG_TIMESTAMP = re.compile(
     r"(\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}|\[\d{4}-\d{2}-\d{2})",
     re.IGNORECASE,
 )
 _PIPE_BRACKET_LINE = re.compile(r"[\[\|]{1}.{10,}[\]\|]{1}")
+# Merlin/Nodecraft fatal error log pattern:
+#   "-F-,<CODE>,..." or "-F-" followed immediately by a Merlin error code
+_MERLIN_FATAL_LOG = re.compile(r"-F-,\s*[A-Z]{2,}\d{2,}", re.IGNORECASE)
 
 
 def is_error_log(text: str) -> bool:
@@ -53,6 +59,7 @@ def is_error_log(text: str) -> bool:
         bool(_PYTHON_TB.search(text)),
         bool(_JAVA_FRAME.search(text)),
         bool(_JS_FRAME.search(text)),
+        bool(_MERLIN_FATAL_LOG.search(text)),
     ]
     if any(strong):
         return True
@@ -90,13 +97,14 @@ def parse_log_signature(text: str) -> LogSignature:
     """Extract a structured signature from an error log for improved search."""
     sig = LogSignature(is_log=is_error_log(text))
 
-    # Error codes
-    sig.error_codes = list({m.group(0) for m in _ERROR_CODE.finditer(text)})
-
-    # HTTP codes
-    http_matches = re.findall(r"\bHTTP[/ ]+(\d{3})\b", text, re.IGNORECASE)
-    sig.error_codes.extend([f"HTTP_{c}" for c in http_matches])
-    sig.error_codes = list(dict.fromkeys(sig.error_codes))  # dedup preserving order
+    # Collect all error code variants, then deduplicate once preserving order.
+    # Standard codes: E0000, ORA-xxx, SQLSTATE, errno, etc.
+    standard_codes = [m.group(0) for m in _ERROR_CODE.finditer(text)]
+    # Merlin/Nodecraft fatal error codes (e.g. FWF266)
+    merlin_codes = [m.group(1) for m in _MERLIN_FATAL_CODE.finditer(text)]
+    # HTTP status codes
+    http_codes = [f"HTTP_{c}" for c in re.findall(r"\bHTTP[/ ]+(\d{3})\b", text, re.IGNORECASE)]
+    sig.error_codes = list(dict.fromkeys(standard_codes + merlin_codes + http_codes))
 
     # Exception types
     sig.exception_types = list(

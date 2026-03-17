@@ -24,7 +24,14 @@ from pydantic import BaseModel
 
 from app.ingestion.ingest import ingest_directory
 from app.llm.client import LLMClient, LocalLLMClient, NoLLMClient, get_llm_client
-from app.llm.prompting import build_chat_messages, format_citation
+from app.llm.prompting import (
+    FWF266_SYSTEM_PROMPT,
+    build_chat_messages,
+    format_citation,
+    format_fwf266_computed,
+)
+from app.reasoning.fwf266_resolver import is_fwf266
+from app.reasoning.fwf266_resolver import resolve as resolve_fwf266
 from app.reasoning.router import route_and_retrieve
 from config import settings
 
@@ -169,12 +176,36 @@ def _handle_query(query: str, expand: bool = False) -> ChatResponse:
         faiss_map_path=settings.faiss_map_path,
     )
 
+    # ------------------------------------------------------------------
+    # FWF266 programmatic resolver
+    # When the query contains an FWF266 error code, compute the exact
+    # global_csv_line_text and global_csv_line_number deterministically
+    # from global.csv and inject the result as grounded facts so the LLM
+    # can report the precise values without guessing.
+    # ------------------------------------------------------------------
+    computed_block: Optional[str] = None
+    system_prompt: Optional[str] = None
+
+    if is_fwf266(query):
+        global_csv_path = str(_abs(settings.docs_dir) / "configuration_files" / "global.csv")
+        resolution = resolve_fwf266(query, global_csv_path)
+        if resolution is not None:
+            computed_block = format_fwf266_computed(
+                global_csv_line_text=resolution.global_csv_line_text,
+                global_csv_line_number=resolution.global_csv_line_number,
+                confidence=resolution.confidence,
+                notes=resolution.notes,
+            )
+            system_prompt = FWF266_SYSTEM_PROMPT
+
     messages = build_chat_messages(
         user_query=query,
         context_results=results,
         is_triage=is_triage,
         expand=expand,
         max_context_chars=settings.max_context_chars,
+        system_prompt=system_prompt,
+        computed_block=computed_block,
     )
 
     llm = _get_llm_client()
@@ -285,12 +316,30 @@ def generate(request: GenerateRequest) -> ChatResponse:
         faiss_map_path=settings.faiss_map_path,
     )
 
+    # FWF266 programmatic resolver (same logic as _handle_query)
+    gen_computed_block: Optional[str] = None
+    effective_system_prompt: Optional[str] = request.system_prompt
+
+    if is_fwf266(request.prompt):
+        global_csv_path = str(_abs(settings.docs_dir) / "configuration_files" / "global.csv")
+        resolution = resolve_fwf266(request.prompt, global_csv_path)
+        if resolution is not None:
+            gen_computed_block = format_fwf266_computed(
+                global_csv_line_text=resolution.global_csv_line_text,
+                global_csv_line_number=resolution.global_csv_line_number,
+                confidence=resolution.confidence,
+                notes=resolution.notes,
+            )
+            if effective_system_prompt is None:
+                effective_system_prompt = FWF266_SYSTEM_PROMPT
+
     messages = build_chat_messages(
         user_query=request.prompt,
         context_results=results,
         is_triage=is_triage,
         max_context_chars=settings.max_context_chars,
-        system_prompt=request.system_prompt,
+        system_prompt=effective_system_prompt,
+        computed_block=gen_computed_block,
     )
 
     temperature = request.temperature if request.temperature is not None else settings.llm_temperature
