@@ -39,7 +39,7 @@ RULES:
    - Identify the reference row used (Conductor_ID, Conductor_Group, voltage).
    - Explain WHY that reference was chosen (closest voltage match).
    - State what the proposed new row changes (Conductor_ID suffix 'a', updated voltage).
-2. Do NOT reproduce the action_payload JSON yourself – it will be appended automatically.
+2. Do NOT output any JSON, code blocks, or action_payload JSON – this is a text-only explanation.
 3. Do not invent or modify any CSV field values.
 4. If the <computed> block contains "no_action: true", explain why no action is required.
 """
@@ -112,6 +112,33 @@ def format_fwf266_computed(
         f"action_payload:\n{payload_str}\n"
         "</computed>\n"
     )
+
+
+def format_fwf266_action_only_response(
+    global_csv_line_text: str,
+    global_csv_line_number: int,
+    confidence: float,
+    notes: str,
+) -> str:
+    """Return ONLY the action_payload as a bare JSON code block (Action Mode).
+
+    Used when the user explicitly requests the action_payload.  No introductory
+    text is included so the response is machine-friendly and copy-pasteable.
+    """
+    import json
+
+    action_payload = {
+        "actions": [
+            {
+                "action": "propose_global_csv_insert",
+                "global_csv_line_text": global_csv_line_text,
+                "global_csv_line_number": global_csv_line_number,
+            }
+        ],
+        "confidence": confidence,
+        "notes": notes,
+    }
+    return f"```json\n{json.dumps(action_payload, indent=2)}\n```"
 
 
 def format_fwf266_action_payload_block(

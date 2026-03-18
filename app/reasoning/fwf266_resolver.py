@@ -20,13 +20,19 @@ _FWF266_RE = re.compile(r"\bFWF266\b")
 # Captures (base_prefix, voltage_digits) separately.
 _VOLTAGE_SUFFIX_RE = re.compile(r"^(.*?)(\d+(?:\.\d+)?)KV$", re.IGNORECASE)
 
+# Matches queries that explicitly request the action_payload (Action Mode).
+_ACTION_MODE_RE = re.compile(
+    r"\b(action_payload|action\s+payload|payload|get\s+action|show\s+action|generate\s+action)\b",
+    re.IGNORECASE,
+)
+
 
 @dataclass
 class FWF266Resolution:
     """Result of a successful FWF266 resolution."""
 
     global_csv_line_text: str
-    global_csv_line_number: int  # 0-based line index in global.csv where the new row is inserted (= reference_row_index + 1)
+    global_csv_line_number: int  # 1-based insertion line number (= reference_row_index + 1)
     confidence: float
     notes: str
 
@@ -34,6 +40,16 @@ class FWF266Resolution:
 def is_fwf266(text: str) -> bool:
     """Return True if *text* contains an FWF266 error code."""
     return bool(_FWF266_RE.search(text))
+
+
+def is_action_mode_request(text: str) -> bool:
+    """Return True if *text* explicitly requests the action_payload.
+
+    Action Mode is triggered when the user mentions 'action_payload', 'payload',
+    or similar keywords, signalling they want the machine-readable JSON rather
+    than a text explanation.
+    """
+    return bool(_ACTION_MODE_RE.search(text))
 
 
 def _parse_conductor_group(conductor_group: str) -> Tuple[Optional[str], Optional[float]]:
@@ -147,7 +163,7 @@ def resolve(
     csv.writer(buf, lineterminator="").writerow(proposed_row)
     proposed_line_text = buf.getvalue()
 
-    insert_at = best_line_idx + 1
+    insert_at = best_line_idx + 1  # 1-based insertion line number in global.csv
 
     notes = (
         f"Closest reference at index {best_line_idx} "

@@ -11,9 +11,13 @@ from app.reasoning.fwf266_resolver import (
     _format_voltage,
     _parse_conductor_group,
     is_fwf266,
+    is_action_mode_request,
     resolve,
 )
-from app.llm.prompting import format_fwf266_action_payload_block
+from app.llm.prompting import (
+    format_fwf266_action_only_response,
+    format_fwf266_action_payload_block,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -36,6 +40,45 @@ def test_is_fwf266_false_for_unrelated_text():
 
 def test_is_fwf266_false_for_other_error_code():
     assert is_fwf266("-F-,FWF999,Some station,Some error,") is False
+
+
+# ---------------------------------------------------------------------------
+# is_action_mode_request
+# ---------------------------------------------------------------------------
+
+
+def test_is_action_mode_detects_action_payload_keyword():
+    assert is_action_mode_request("give me the action_payload for FWF266") is True
+
+
+def test_is_action_mode_detects_action_payload_with_space():
+    assert is_action_mode_request("what is the action payload for this error?") is True
+
+
+def test_is_action_mode_detects_payload_alone():
+    assert is_action_mode_request("I need the payload for FWF266") is True
+
+
+def test_is_action_mode_detects_get_action():
+    assert is_action_mode_request("get action for this FWF266 error") is True
+
+
+def test_is_action_mode_false_for_plain_error_log():
+    log = (
+        "-F-,FWF266,PH382E$4115222E,Line conductor model was not found in global data.,"
+        "Record name: Line Field name: CondModA,Station External Device: PH382E$4115222E,"
+        "OH_653_A_2PH_653_A_N_2.9KV,,,,ALOLA,,PH382E$4115222E,ENG"
+    )
+    # A bare error log has no action keywords – triage mode should be used.
+    assert is_action_mode_request(log) is False
+
+
+def test_is_action_mode_false_for_question():
+    assert is_action_mode_request("why did FWF266 occur?") is False
+
+
+def test_is_action_mode_case_insensitive():
+    assert is_action_mode_request("show me the ACTION_PAYLOAD") is True
 
 
 # ---------------------------------------------------------------------------
@@ -297,3 +340,50 @@ def test_combined_response_contains_both_explanation_and_payload(synthetic_globa
     assert "Line Conductor Model" in full_response        # text explanation
     assert "propose_global_csv_insert" in full_response  # action payload
     assert "```json" in full_response                    # valid JSON code block
+
+
+# ---------------------------------------------------------------------------
+# format_fwf266_action_only_response – Action Mode output
+# ---------------------------------------------------------------------------
+
+
+def test_action_only_response_is_bare_json_code_block():
+    """Action Mode response must be only a JSON code block with no extra text."""
+    response = format_fwf266_action_only_response(
+        global_csv_line_text="Conductor_Model,1,COND_Xa,OH_TEST_N_2.9KV,TRUE",
+        global_csv_line_number=42,
+        confidence=0.9,
+        notes="test note",
+    )
+    assert response.startswith("```json")
+    assert response.strip().endswith("```")
+
+
+def test_action_only_response_contains_valid_json():
+    """The action-only block must contain fully valid JSON."""
+    line_text = "Conductor_Model,1,COND_Xa,OH_TEST_N_2.9KV,TRUE"
+    response = format_fwf266_action_only_response(
+        global_csv_line_text=line_text,
+        global_csv_line_number=99,
+        confidence=0.85,
+        notes="note",
+    )
+    json_str = response.replace("```json", "").replace("```", "").strip()
+    payload = json.loads(json_str)
+    assert payload["actions"][0]["global_csv_line_text"] == line_text
+    assert payload["actions"][0]["global_csv_line_number"] == 99
+    assert payload["confidence"] == 0.85
+
+
+def test_action_only_response_has_no_introductory_text():
+    """Action Mode must not include human-readable text outside the code fence."""
+    response = format_fwf266_action_only_response(
+        global_csv_line_text="Conductor_Model,1,COND_Xa,OH_TEST_N_2.9KV,TRUE",
+        global_csv_line_number=1,
+        confidence=0.9,
+        notes="note",
+    )
+    # Strip the code block – nothing should remain
+    stripped = response.replace("```json", "").replace("```", "").strip()
+    # The only content should be parseable JSON (no extra prose)
+    json.loads(stripped)  # raises if invalid

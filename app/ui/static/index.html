@@ -17,6 +17,7 @@
       --accent:   #5b8dee;
       --accent2:  #3ecf8e;
       --triage:   #f59e0b;
+      --action:   #a78bfa;
       --text:     #e2e8f0;
       --muted:    #8892a4;
       --user-bg:  #2a3050;
@@ -145,13 +146,34 @@
       margin-bottom: 8px;
     }
 
+    /* Action Mode badge */
+    .action-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      background: rgba(167,139,250,.15);
+      color: var(--action);
+      border: 1px solid rgba(167,139,250,.35);
+      border-radius: 6px;
+      font-size: .72rem;
+      font-weight: 600;
+      padding: 2px 8px;
+      margin-bottom: 8px;
+    }
+
     /* Markdown-ish rendering */
     .bubble pre {
       background: #12141d;
       border: 1px solid var(--border);
       border-radius: 6px;
       padding: 10px 14px;
+      /* Wrap long lines instead of scrolling horizontally.
+         word-break: break-all is intentional: CSV values contain no spaces,
+         so break-word would not split them. */
       overflow-x: auto;
+      white-space: pre-wrap;
+      word-break: break-all;
+      overflow-wrap: break-word;
       font-size: .82rem;
       margin: 8px 0;
     }
@@ -372,10 +394,26 @@
     input.style.height = Math.min(input.scrollHeight, 180) + 'px';
   });
 
+  // ── Per-line code formatter (hanging indent for wrapped lines) ────────────
+  // Each source line is wrapped in a <span> whose padding-left matches the
+  // line's leading whitespace and whose text-indent cancels that padding for
+  // the first visual row.  When a long line wraps, the continuation starts
+  // aligned under the first non-whitespace character of the original line.
+  function formatCodeBlock(code) {
+    return code.split('\n').map(line => {
+      const m = line.match(/^(\s*)/);
+      const spaces = m ? m[1].length : 0;
+      const indent = spaces + 'ch';
+      return `<span style="display:block;padding-left:${indent};text-indent:-${indent}">${escapeHtml(line)}</span>`;
+    }).join('');
+  }
+
   // ── Simple markdown renderer ──────────────────────────────────────────────
   function renderMarkdown(text) {
-    // Code blocks
-    text = text.replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>');
+    // Fenced code blocks (strip optional language hint like ```json)
+    text = text.replace(/```(?:\w+)?\n?([\s\S]*?)```/g, (_, code) => {
+      return '<pre><code>' + formatCodeBlock(code.trim()) + '</code></pre>';
+    });
     // Inline code
     text = text.replace(/`([^`]+)`/g, '<code>$1</code>');
     // Bold
@@ -447,11 +485,13 @@
 
   // ── Append a bot response ─────────────────────────────────────────────────
   function appendBot(data, originalQuery) {
-    const { answer, citations, is_triage, chunk_ids } = data;
+    const { answer, citations, is_triage, is_action_mode, chunk_ids } = data;
 
-    const triageBadge = is_triage
-      ? `<div class="triage-badge">🚨 Triage Mode</div>`
-      : '';
+    const modeBadge = is_action_mode
+      ? `<div class="action-badge">⚡ Action Mode</div>`
+      : is_triage
+        ? `<div class="triage-badge">🚨 Triage Mode</div>`
+        : '';
 
     const citationHtml = citations.length
       ? `<button class="citations-toggle" onclick="this.nextElementSibling.classList.toggle('open')">
@@ -466,7 +506,7 @@
       <div class="avatar">M</div>
       <div>
         <div class="bubble">
-          ${triageBadge}
+          ${modeBadge}
           ${renderMarkdown(answer)}
           ${citationHtml}
         </div>

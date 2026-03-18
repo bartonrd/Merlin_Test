@@ -28,10 +28,11 @@ from app.llm.prompting import (
     FWF266_SYSTEM_PROMPT,
     build_chat_messages,
     format_citation,
+    format_fwf266_action_only_response,
     format_fwf266_action_payload_block,
     format_fwf266_computed,
 )
-from app.reasoning.fwf266_resolver import is_fwf266
+from app.reasoning.fwf266_resolver import is_action_mode_request, is_fwf266
 from app.reasoning.fwf266_resolver import resolve as resolve_fwf266
 from app.reasoning.router import route_and_retrieve
 from config import settings
@@ -117,6 +118,7 @@ class ChatResponse(BaseModel):
     answer: str
     citations: List[str]
     is_triage: bool
+    is_action_mode: bool = False
     chunk_ids: List[int]
 
 
@@ -181,33 +183,98 @@ def _handle_query(query: str, expand: bool = False) -> ChatResponse:
     # FWF266 programmatic resolver
     # When the query contains an FWF266 error code, compute the exact
     # global_csv_line_text and global_csv_line_number deterministically
-    # from global.csv and inject the result as grounded facts so the LLM
-    # can report the precise values without guessing.
+    # from global.csv.
+    #
+    # Mode selection:
+    #   • Action Mode  – user explicitly asks for the action_payload →
+    #                    skip the LLM; return only the JSON code block.
+    #   • Triage Mode  – user is asking about the error →
+    #                    run the LLM for a text explanation only.
     # ------------------------------------------------------------------
-    computed_block: Optional[str] = None
-    system_prompt: Optional[str] = None
-    resolution = None
-
     if is_fwf266(query):
         global_csv_path = str(_abs(settings.docs_dir) / "configuration_files" / "global.csv")
         resolution = resolve_fwf266(query, global_csv_path)
         if resolution is not None:
+            citations = [format_citation(r) for r in results]
+            chunk_ids = [r.chunk_id for r in results]
+
+            if is_action_mode_request(query):
+                # Action Mode: return only the machine-readable JSON payload.
+                answer = format_fwf266_action_only_response(
+                    global_csv_line_text=resolution.global_csv_line_text,
+                    global_csv_line_number=resolution.global_csv_line_number,
+                    confidence=resolution.confidence,
+                    notes=resolution.notes,
+                )
+                _audit(
+                    {
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                        "query": query,
+                        "chunk_ids": chunk_ids,
+                        "answer": answer,
+                        "is_triage": False,
+                        "is_action_mode": True,
+                    }
+                )
+                return ChatResponse(
+                    answer=answer,
+                    citations=citations,
+                    is_triage=False,
+                    is_action_mode=True,
+                    chunk_ids=chunk_ids,
+                )
+
+            # Triage Mode: ask the LLM to explain the resolution in plain text.
             computed_block = format_fwf266_computed(
                 global_csv_line_text=resolution.global_csv_line_text,
                 global_csv_line_number=resolution.global_csv_line_number,
                 confidence=resolution.confidence,
                 notes=resolution.notes,
             )
-            system_prompt = FWF266_SYSTEM_PROMPT
+            messages = build_chat_messages(
+                user_query=query,
+                context_results=results,
+                is_triage=is_triage,
+                expand=expand,
+                max_context_chars=settings.max_context_chars,
+                system_prompt=FWF266_SYSTEM_PROMPT,
+                computed_block=computed_block,
+            )
+            llm = _get_llm_client()
+            try:
+                answer = llm.chat(
+                    messages=messages,
+                    max_tokens=settings.llm_max_tokens,
+                    temperature=settings.llm_temperature,
+                )
+            except RuntimeError as exc:
+                raise HTTPException(status_code=503, detail=str(exc)) from exc
 
+            _audit(
+                {
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "query": query,
+                    "chunk_ids": chunk_ids,
+                    "answer": answer,
+                    "is_triage": is_triage,
+                    "is_action_mode": False,
+                }
+            )
+            return ChatResponse(
+                answer=answer,
+                citations=citations,
+                is_triage=is_triage,
+                is_action_mode=False,
+                chunk_ids=chunk_ids,
+            )
+
+    # Non-FWF266 path: standard document / triage query.
     messages = build_chat_messages(
         user_query=query,
         context_results=results,
         is_triage=is_triage,
         expand=expand,
         max_context_chars=settings.max_context_chars,
-        system_prompt=system_prompt,
-        computed_block=computed_block,
     )
 
     llm = _get_llm_client()
@@ -219,17 +286,6 @@ def _handle_query(query: str, expand: bool = False) -> ChatResponse:
         )
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
-
-    # Always append the action_payload code block when a FWF266 resolution was
-    # computed, guaranteeing the chat response contains both the text explanation
-    # and the machine-readable payload regardless of LLM output variability.
-    if resolution is not None:
-        answer += format_fwf266_action_payload_block(
-            global_csv_line_text=resolution.global_csv_line_text,
-            global_csv_line_number=resolution.global_csv_line_number,
-            confidence=resolution.confidence,
-            notes=resolution.notes,
-        )
 
     citations = [format_citation(r) for r in results]
     chunk_ids = [r.chunk_id for r in results]
@@ -329,31 +385,91 @@ def generate(request: GenerateRequest) -> ChatResponse:
         faiss_map_path=settings.faiss_map_path,
     )
 
-    # FWF266 programmatic resolver (same logic as _handle_query)
-    gen_computed_block: Optional[str] = None
-    effective_system_prompt: Optional[str] = request.system_prompt
-    gen_resolution = None
-
+    # FWF266 programmatic resolver (same mode-based logic as _handle_query)
     if is_fwf266(request.prompt):
         global_csv_path = str(_abs(settings.docs_dir) / "configuration_files" / "global.csv")
         gen_resolution = resolve_fwf266(request.prompt, global_csv_path)
         if gen_resolution is not None:
+            citations = [format_citation(r) for r in results]
+            chunk_ids = [r.chunk_id for r in results]
+
+            if is_action_mode_request(request.prompt):
+                answer = format_fwf266_action_only_response(
+                    global_csv_line_text=gen_resolution.global_csv_line_text,
+                    global_csv_line_number=gen_resolution.global_csv_line_number,
+                    confidence=gen_resolution.confidence,
+                    notes=gen_resolution.notes,
+                )
+                _audit(
+                    {
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                        "query": request.prompt,
+                        "chunk_ids": chunk_ids,
+                        "answer": answer,
+                        "is_triage": False,
+                        "is_action_mode": True,
+                    }
+                )
+                return ChatResponse(
+                    answer=answer,
+                    citations=citations,
+                    is_triage=False,
+                    is_action_mode=True,
+                    chunk_ids=chunk_ids,
+                )
+
+            # Triage Mode: LLM provides text-only explanation.
+            effective_system_prompt = request.system_prompt or FWF266_SYSTEM_PROMPT
             gen_computed_block = format_fwf266_computed(
                 global_csv_line_text=gen_resolution.global_csv_line_text,
                 global_csv_line_number=gen_resolution.global_csv_line_number,
                 confidence=gen_resolution.confidence,
                 notes=gen_resolution.notes,
             )
-            if effective_system_prompt is None:
-                effective_system_prompt = FWF266_SYSTEM_PROMPT
+            messages = build_chat_messages(
+                user_query=request.prompt,
+                context_results=results,
+                is_triage=is_triage,
+                max_context_chars=settings.max_context_chars,
+                system_prompt=effective_system_prompt,
+                computed_block=gen_computed_block,
+            )
+            temperature = request.temperature if request.temperature is not None else settings.llm_temperature
+            llm = _get_llm_client()
+            try:
+                answer = llm.chat(
+                    messages=messages,
+                    max_tokens=settings.llm_max_tokens,
+                    temperature=temperature,
+                )
+            except RuntimeError as exc:
+                raise HTTPException(status_code=503, detail=str(exc)) from exc
 
+            _audit(
+                {
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "query": request.prompt,
+                    "chunk_ids": chunk_ids,
+                    "answer": answer,
+                    "is_triage": is_triage,
+                    "is_action_mode": False,
+                }
+            )
+            return ChatResponse(
+                answer=answer,
+                citations=citations,
+                is_triage=is_triage,
+                is_action_mode=False,
+                chunk_ids=chunk_ids,
+            )
+
+    # Non-FWF266 path.
     messages = build_chat_messages(
         user_query=request.prompt,
         context_results=results,
         is_triage=is_triage,
         max_context_chars=settings.max_context_chars,
-        system_prompt=effective_system_prompt,
-        computed_block=gen_computed_block,
+        system_prompt=request.system_prompt,
     )
 
     temperature = request.temperature if request.temperature is not None else settings.llm_temperature
@@ -367,15 +483,6 @@ def generate(request: GenerateRequest) -> ChatResponse:
         )
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
-
-    # Always append the action_payload code block when a FWF266 resolution was computed.
-    if gen_resolution is not None:
-        answer += format_fwf266_action_payload_block(
-            global_csv_line_text=gen_resolution.global_csv_line_text,
-            global_csv_line_number=gen_resolution.global_csv_line_number,
-            confidence=gen_resolution.confidence,
-            notes=gen_resolution.notes,
-        )
 
     citations = [format_citation(r) for r in results]
     chunk_ids = [r.chunk_id for r in results]
