@@ -32,7 +32,7 @@ class FWF266Resolution:
     """Result of a successful FWF266 resolution."""
 
     global_csv_line_text: str
-    global_csv_line_number: int  # 1-based insertion line number (= reference_row_index + 1)
+    global_csv_line_number: int  # 1-based insertion line number (= reference_row_index + 2)
     confidence: float
     notes: str
 
@@ -163,7 +163,7 @@ def resolve(
     csv.writer(buf, lineterminator="").writerow(proposed_row)
     proposed_line_text = buf.getvalue()
 
-    insert_at = best_line_idx + 1  # 1-based insertion line number in global.csv
+    insert_at = best_line_idx + 2  # 1-based insertion line number in global.csv (after the reference row)
 
     notes = (
         f"Closest reference at index {best_line_idx} "

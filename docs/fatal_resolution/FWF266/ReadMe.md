@@ -113,9 +113,9 @@ Merlin must emit a valid Nodecraft `action_payload` using the fields below.
     1) `Conductor_ID` is the reference `Conductor_ID` with a trailing `"a"`.
     2) `Conductor_Group` voltage suffix updated to the target voltage (e.g., `..._2.4KV`).
 - **global_csv_line_number** *(integer)*:
-  - **0‑based** line index at which the new row should be inserted.
-  - **Line 0 is the header row.**
-  - Must equal `reference_record_index + 1` (i.e., inserted immediately **after** the matched reference record).
+  - **1‑based** line number at which the new row should be inserted.
+  - **Line 1 is the header row.**
+  - Must equal `reference_record_index + 2` (i.e., inserted immediately **after** the matched reference record).
 - **confidence** *(number in [0.0, 1.0])*:
   - Merlin’s confidence that the proposed line is correct.
 - **notes** *(string)*:
@@ -128,7 +128,7 @@ Merlin must emit a valid Nodecraft `action_payload` using the fields below.
     {
       "action": "propose_global_csv_insert",
       "global_csv_line_text": "Conductor_Model,1,COND_578a,OH_653_A_2PH_653_A_N_2.4KV,TRUE,0.001,0.001,,,,0.1,,,,,,,,,,,,,,,,A,653,1,0.032575805,0.11961053,0.086704627,0.547586002,0,0,2,Normal,1,920,Year Round,,TRUE,Emergency,1,1200,Year Round,,TRUE,,,,,,,,,,,,,,",
-      "global_csv_line_number": 767
+      "global_csv_line_number": 768
     }
   ],
   "confidence": 0.92,

@@ -177,7 +177,7 @@ def test_resolve_line_number_is_reference_plus_one(synthetic_global_csv):
     # 4: COND_B
     # 5: COND_C  ← reference
     # 6: COND_D
-    assert result.global_csv_line_number == 6  # 5 + 1
+    assert result.global_csv_line_number == 7  # 5 + 2
 
 
 def test_resolve_tie_broken_by_higher_voltage(tmp_path):
@@ -261,9 +261,9 @@ def test_resolve_real_global_csv_fwf266_example():
     assert "OH_653_A_2PH_653_A_N_2.9KV" in result.global_csv_line_text, (
         f"Expected updated Conductor_Group in line_text, got: {result.global_csv_line_text[:80]}"
     )
-    # COND_578a is at 0-based line 766 in the real file; insert at 767.
-    assert result.global_csv_line_number == 767, (
-        f"Expected line_number=767, got: {result.global_csv_line_number}"
+    # COND_578a is at 0-based line 766 in the real file; insert at 768.
+    assert result.global_csv_line_number == 768, (
+        f"Expected line_number=768, got: {result.global_csv_line_number}"
     )
     assert 0.0 <= result.confidence <= 1.0
 
