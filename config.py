@@ -26,7 +26,7 @@ class Settings(BaseSettings):
     top_k_vector: int = 10
     top_k_final: int = 5
     min_vector_score: float = 0.3
-    reranker_enabled: bool = False
+    reranker_enabled: bool = True
     reranker_model: str = "cross-encoder/ms-marco-MiniLM-L-6-v2"
 
     # Storage paths
